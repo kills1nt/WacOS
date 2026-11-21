@@ -437,6 +437,11 @@ void SetWidgets(std::vector<Widget> list, std::function<void()> onEdit);  // onE
 struct Brief { std::wstring aumid, app; long long time; };  // notificação do Windows (só o necessário para o badge)
 std::vector<Brief> Recentes();  // as notificações da Central agora (qualquer thread)
 }
+namespace camada {  // camada.cpp: devolve ao lugar a camada da GPU de apps Chromium que abriram com ela deslocada (Spotify)
+void Start();
+void Stop();
+}
+
 namespace previa {  // previa.cpp: prévia das janelas de um app ao parar o ponteiro sobre o ícone no Dock (dock_previa=1)
 void Hover(const std::wstring& appId, RECT iconScreen, int side);  // ponteiro sobre o ícone (side: 0 embaixo, 1 esq., 2 dir.)
 void Leave();                                // saiu do ícone (o painel fica se o ponteiro for para ele)

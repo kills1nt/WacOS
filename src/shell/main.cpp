@@ -510,6 +510,7 @@ static void Restore() {
     if (g_quitting) return;
     g_quitting = true;
     winultra::Stop();
+    camada::Stop();
     tray::Stop();
     menus::Stop();
     dialogs::Stop();
@@ -1143,6 +1144,7 @@ int WINAPI wWinMain(HINSTANCE hi, HINSTANCE, PWSTR, int) {
     notificacoes::Create(hi);  // Central de Notificações (clique no relógio da barra de menus)
     ilha::Create(hi);  // Ilha Dinâmica (ajuste ilha=1)
     winultra::Start();  // WinUltra, a ilha de vidro (ajuste winultra=1)
+    camada::Start();    // Chromium com a camada da GPU deslocada (Spotify): volta ao lugar
     if (!soDock) notarapida::Create(hi);  // canto inferior direito: Nota Rápida
     if (!soDock) progresso::Create(hi);  // copiar/mover/apagar: a janela de progresso do Finder no lugar da do Windows
     if (!soDock) cantos::Start();         // Cantos Ativos (Mission Control, mesa, Launchpad... por canto)
@@ -1236,6 +1238,7 @@ int shell::RodarNativo(HINSTANCE hi, const std::wstring& dirBin, const std::wstr
     notificacoes::Create(hi);
     ilha::Create(hi);
     winultra::Start();
+    camada::Start();
     notarapida::Create(hi);
     progresso::Create(hi);
     cantos::Start();
