@@ -238,6 +238,16 @@ void LightsLayout(Info* in, float& lx0, float& lpitch, float& lr) {
     if (in->custom && !in->tool && !leopard::On()) { lx0 = 19; lpitch = 23; lr = 7; }
     lx0 += WinAppInset(in);
 }
+// Buttons on the right (semaforo::Direita, botoes_direita=1): Windows order, close at the edge. Not in the WacOS apps
+// that use this DLL for their bar (their toolbars are laid out after left buttons)
+bool Right(Info* in) { return semaforo::Direita() && !OwnApp() && !UnifiedBar(in->owner); }
+// centre x (pt) of button k (0 close, 1 minimise, 2 zoom) in a bar W pt wide
+float LightX(Info* in, int k, float W) {
+    float lx0, lp, lr; LightsLayout(in, lx0, lp, lr);
+    if (!Right(in)) return lx0 + k * lp;
+    int pos = k == 0 ? 0 : k == 2 ? 1 : 2;
+    return W - lx0 - pos * lp;
+}
 // largura (pt) da faixa da esquerda na barra própria: só até 6 pt depois do verde (cobre o mínimo do app)
 float PatchL(Info* in) { float lx0, lp, lr; LightsLayout(in, lx0, lp, lr); return lx0 + 2 * lp + lr + 6; }
 // onde a linha das abas começa (gancho do Chrome): no Chrome do Mac a 1ª aba (com o "pé" curvo) começa ~16 pt depois
@@ -326,14 +336,14 @@ void Paint(Info* in) {
                 rt->FillGeometry(g, b);
                 g->Release();
             };
-            fill(in->leftColor, D2D1::RectF(0, 0, PatchL(in), H), true);
+            if (!Right(in)) fill(in->leftColor, D2D1::RectF(0, 0, PatchL(in), H), true);
             fill(in->rightColor, D2D1::RectF(W - PatchR(in), 0, W, H), false);
             if (in->capas && !IsZoomed(in->owner)) {  // o fio da borda do DWM, que as faixas cobrem nos lados (continua o das capas)
                 int fundo = (int)(INT_PTR)GetPropW(in->owner, L"MacJanelaFundo");
                 bool dk = fundo ? fundo == 2 : Dark();
                 b->SetColor(dk ? D2D1::ColorF(0x4A / 255.f, 0x4A / 255.f, 0x4D / 255.f) : D2D1::ColorF(0xC2 / 255.f, 0xC2 / 255.f, 0xC5 / 255.f));
                 float Rr = CornerRadius(in->owner) / sc, o = 0.5f / sc, lw = 1 / sc;
-                for (int side = 0; side < 2; side++) {
+                for (int side = Right(in) ? 1 : 0; side < 2; side++) {
                     ID2D1PathGeometry* g = nullptr;
                     if (FAILED(g_d2d->CreatePathGeometry(&g))) continue;
                     ID2D1GeometrySink* sk = nullptr;
@@ -380,7 +390,7 @@ void Paint(Info* in) {
         float lx0, lpitch, lr;
         LightsLayout(in, lx0, lpitch, lr);
         for (int k = 0; k < 3; k++) {
-            D2D1_POINT_2F c{ lx0 + k * lpitch, LightsY(in, H) };
+            D2D1_POINT_2F c{ LightX(in, k, W), LightsY(in, H) };
             bool lit = (in->active || in->hoverLights) && can[k];
             b->SetColor(lit ? on[k] : (in->dark ? D2D1::ColorF(1, 1, 1, 0.22f) : D2D1::ColorF(0, 0, 0, 0.18f)));
             rt->FillEllipse(D2D1::Ellipse(c, lr, lr), b);
@@ -443,10 +453,8 @@ int HitLight(Info* in, POINT clientPt) {
     float sc = Scale(in->owner);
     RECT r = BarRect(in);
     float H = (r.bottom - r.top) / sc;
-    float x = clientPt.x / sc, y = clientPt.y / sc;
-    float lx0, lpitch, lr;
-    LightsLayout(in, lx0, lpitch, lr);  // mesmas posições do desenho
-    for (int k = 0; k < 3; k++) if (std::fabs(x - (lx0 + k * lpitch)) <= 9 && std::fabs(y - LightsY(in, H)) <= 8) return k;
+    float x = clientPt.x / sc, y = clientPt.y / sc, W = (r.right - r.left) / sc;
+    for (int k = 0; k < 3; k++) if (std::fabs(x - LightX(in, k, W)) <= 9 && std::fabs(y - LightsY(in, H)) <= 8) return k;  // mesmas posições do desenho
     return -1;
 }
 
@@ -1227,11 +1235,12 @@ LRESULT CALLBACK OverlayProc(HWND h, UINT m, WPARAM w, LPARAM l) {
         p.x -= r.left; p.y -= r.top;
         float sc = Scale(in->owner);
         if (in->custom) {  // só as duas faixas pintadas; o resto deixa o clique passar para a barra do app (abas, arrastar)
-            if (p.x / sc < PatchL(in)) return HTCLIENT;
+            if (!Right(in) && p.x / sc < PatchL(in)) return HTCLIENT;
             if (p.x / sc > (r.right - r.left) / sc - PatchR(in)) return HTCLIENT;
             return HTTRANSPARENT;
         }
-        if (p.x / sc < (UnifiedBar(in->owner) > 40 ? 84 : 72) + WinAppInset(in)) return HTCLIENT;
+        float zone = (UnifiedBar(in->owner) > 40 ? 84 : 72) + WinAppInset(in);
+        if (Right(in) ? p.x / sc > (r.right - r.left) / sc - zone : p.x / sc < zone) return HTCLIENT;
         return HTTRANSPARENT;
     }
     case WM_MOUSEACTIVATE: return MA_NOACTIVATE;
@@ -1949,7 +1958,7 @@ void Attach(HWND h, int mode) {
         SetPropW(h, L"MacJanelaPropria", (HANDLE)1);
         in->patchR = g_ultimoPatch;
         g_leadW = LeadW(in);
-        if (GanchoAbas(true)) RefazBarra(h);  // Chrome medido: as abas começam depois dos botões do Mac
+        if (!Right(in) && GanchoAbas(true)) RefazBarra(h);  // Chrome medido: as abas começam depois dos botões do Mac
     }
     in->overlay = CreateWindowExW(WS_EX_LAYERED | WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE, L"MacJanelaBarra", L"", WS_POPUP, 0, 0, 1, 1, h, nullptr, g_mod, nullptr);
     if (in->overlay) { SetWindowLongPtrW(in->overlay, GWLP_USERDATA, (LONG_PTR)in); in->fastUntil = GetTickCount() + 900; SetTimer(in->overlay, 1, 16, nullptr); }

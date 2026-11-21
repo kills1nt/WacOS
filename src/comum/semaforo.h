@@ -16,7 +16,7 @@ namespace semaforo {
 enum Kind { FILL, RING, GLYPH };
 
 // lê destaque= e o tema (golden_gate=1 junto com liquid_glass=1 = macOS Golden Gate) do ajustes.txt
-struct Estado { bool grafite = false, aqua = false, liquid = false, leopard = false; };
+struct Estado { bool grafite = false, aqua = false, liquid = false, leopard = false, direita = true; };
 inline const Estado& Ler(bool force = false) {  // force: relê já (o Shell avisou que os ajustes mudaram)
     static Estado st;
     static DWORD lastCheck = 0;
@@ -34,23 +34,28 @@ inline const Estado& Ler(bool force = false) {  // force: relê já (o Shell avi
     lastWrite = fa.ftLastWriteTime;
     FILE* f = nullptr;
     if (_wfopen_s(&f, path.c_str(), L"r, ccs=UTF-8") || !f) return st;
-    bool g = false, liquid = false, golden = false, leo = false;
+    bool g = false, liquid = false, golden = false, leo = false, dir = true;
     wchar_t line[512];
     while (fgetws(line, 512, f)) {
         if (wcsncmp(line, L"destaque=", 9) == 0) g = wcsncmp(line + 9, L"grafite", 7) == 0;
         if (wcsncmp(line, L"liquid_glass=", 13) == 0) liquid = line[13] == L'1';
         if (wcsncmp(line, L"golden_gate=", 12) == 0) golden = line[12] == L'1';
         if (wcsncmp(line, L"leopard=", 8) == 0) leo = line[8] == L'1';
+        if (wcsncmp(line, L"botoes_direita=", 15) == 0) dir = line[15] != L'0';
     }
     fclose(f);
     st.grafite = g;
     st.aqua = liquid && golden;
     st.liquid = liquid;
-    st.leopard = leo && !liquid;  // Mac OS X Leopard: só sem o Liquid Glass (o Sequoia por baixo)
+    st.leopard = leo && !liquid;
+    st.direita = dir;  // Mac OS X Leopard: só sem o Liquid Glass (o Sequoia por baixo)
     return st;
 }
 
 inline bool Grafite() { return Ler().grafite; }
+// The window buttons on the right, in the Windows order (minimise, zoom, close; close at the edge): this is Windows,
+// and the other apps' own buttons are there too. botoes_direita=0 puts them back on the left, like on the Mac.
+inline bool Direita() { return Ler().direita; }
 
 // Tema macOS Golden Gate (macOS 27, beta 6 em diante): os botões ganharam volume de novo. Medido nas capturas do
 // 512 Pixels (Finder, 2x, botão de 28 px): o círculo é um degradê de cima para baixo — mais saturado no alto, mais

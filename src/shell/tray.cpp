@@ -186,6 +186,9 @@ void tray::Start(std::function<void()> changed) {
     RegisterClassW(&tc);
     RECT tb{ 0, 0, 1, 1 };
     if (HWND ex = ExplorerTray()) GetWindowRect(ex, &tb);
+    // at the top of the primary monitor, where the menu bar is: apps that look at the taskbar's rect to place their
+    // tray menu (above a bottom taskbar, below a top one) open it downwards from the menu bar, like on the Mac
+    { int th = std::max<int>(1, tb.bottom - tb.top); tb = { 0, 0, GetSystemMetrics(SM_CXSCREEN), th }; }
     g_tray = CreateWindowExW(WS_EX_TOPMOST | WS_EX_TOOLWINDOW, L"Shell_TrayWnd", L"", WS_POPUP,
                              tb.left, tb.top, tb.right - tb.left, tb.bottom - tb.top, nullptr, nullptr, shell::inst, nullptr);
     g_notify = CreateWindowExW(0, L"TrayNotifyWnd", nullptr, WS_CHILD, 0, 0, 1, 1, g_tray, nullptr, shell::inst, nullptr);

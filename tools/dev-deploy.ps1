@@ -12,7 +12,7 @@ $progs = 'WacOSShell.exe', 'WacOSFinder.exe', 'WacOSSettings.exe', 'WacOSActivit
          'WacOSCalculator.exe', 'WacOSNotes.exe', 'WacOSScreenshot.exe', 'WacOSPreview.exe', 'WacOSReminders.exe',
          'WacOSCalendar.exe', 'WacOSTextEdit.exe', 'WacOSClock.exe', 'WacOSWeather.exe', 'WacOSContacts.exe',
          'WacOSPhotos.exe', 'WacOSTimeMachine.exe', 'WacOSMusic.exe', 'WacOSQuickTime.exe', 'WacOSForceQuit.exe',
-         'WacOSTitleBars.exe', 'WinUltra.exe', 'WacOSWindow.dll', 'WacOSWindow32.dll', 'WacOSGancho.dll', 'WacOSGancho32.dll', 'versao.txt'
+         'WacOSTitleBars.exe', 'WacOSWindow.dll', 'WacOSWindow32.dll', 'WacOSGancho.dll', 'WacOSGancho32.dll', 'versao.txt'
 $scripts = 'atualizar-github.ps1', 'baixar-apple.ps1', 'musica-registrar.ps1', 'quicktime-registrar.ps1',
            'icones-sistema.ps1', 'icones-sistema-extra.ps1', 'dialogo-desligar.ps1'
 
@@ -24,7 +24,7 @@ if ($shellWasOpen) {
     if (Get-Process WacOSShell -ErrorAction SilentlyContinue) { throw 'the Shell did not quit (Ctrl+Alt+Shift+F12 and run again)' }
 }
 if (Get-Process WacOSTitleBars -ErrorAction SilentlyContinue) { Start-Process "$dest\bin\WacOSTitleBars.exe" -ArgumentList '--sair' -Wait }
-Get-Process WacOS*, WinUltra -ErrorAction SilentlyContinue | Stop-Process -Force
+Get-Process WacOS* -ErrorAction SilentlyContinue | Stop-Process -Force
 Start-Sleep -Milliseconds 500
 
 # 2. copy what was built (a DLL still loaded in another app is reported, not fatal)
@@ -34,6 +34,8 @@ foreach ($p in $progs) {
     if (-not (Test-Path $f)) { continue }
     try { Copy-Item $f "$dest\bin\$p" -Force; $copied++ } catch { $failed += $p }
 }
+# loose files of icones\ that the Shell reads (the menu bar's Hermes logo)
+Copy-Item (Join-Path $PSScriptRoot '..\icones\hermes-logo.png') "$dest\icones\hermes-logo.png" -Force -ErrorAction SilentlyContinue
 foreach ($s in $scripts) { Copy-Item (Join-Path $PSScriptRoot $s) "$dest\tools\$s" -Force -ErrorAction SilentlyContinue }
 if (Test-Path "$src\WacOSSetup.exe") { Copy-Item "$src\WacOSSetup.exe" "$dest\WacOSSetup.exe" -Force -ErrorAction SilentlyContinue }
 Write-Host "copied: $copied files to $dest\bin"

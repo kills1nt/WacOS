@@ -509,7 +509,6 @@ void shell::ApplyWorkArea() {
 static void Restore() {
     if (g_quitting) return;
     g_quitting = true;
-    winultra::Stop();
     camada::Stop();
     tray::Stop();
     menus::Stop();
@@ -678,6 +677,41 @@ bool shell::NaoIncomodar(HMONITOR mon) {
     return !mon || MonitorFromWindow(fg, MONITOR_DEFAULTTONEAREST) == mon;
 }
 
+// Fallback when the full-screen window is not the foreground one (a game in exclusive mode, a player whose
+// full-screen window never takes focus, a video with the focus left on another monitor): the top window of each
+// monitor covering it entirely, as ilha.cpp does for the primary monitor. Returns that monitor, or null.
+static HMONITOR FullByZOrder() {
+    QUERY_USER_NOTIFICATION_STATE q{};
+    if (SUCCEEDED(SHQueryUserNotificationState(&q)) && (q == QUNS_RUNNING_D3D_FULL_SCREEN || q == QUNS_PRESENTATION_MODE))
+        return MonitorFromPoint({ 0, 0 }, MONITOR_DEFAULTTOPRIMARY);
+    std::vector<HMONITOR> mons;
+    EnumDisplayMonitors(nullptr, nullptr, [](HMONITOR hm, HDC, LPRECT, LPARAM p) -> BOOL { ((std::vector<HMONITOR>*)p)->push_back(hm); return TRUE; }, (LPARAM)&mons);
+    for (HMONITOR hm : mons) {
+        MONITORINFO mi{ sizeof(mi) };
+        if (!GetMonitorInfoW(hm, &mi)) continue;
+        const RECT& m = mi.rcMonitor;
+        const LONG monArea = (m.right - m.left) * (m.bottom - m.top);
+        for (HWND h = GetTopWindow(nullptr); h; h = GetWindow(h, GW_HWNDNEXT)) {
+            if (!IsWindowVisible(h) || IsIconic(h) || shell::Nossa(h) || apps::IsShellWindow(h)) continue;
+            BOOL cloaked = FALSE;
+            if (SUCCEEDED(DwmGetWindowAttribute(h, DWMWA_CLOAKED, &cloaked, sizeof(cloaked))) && cloaked) continue;
+            LONG ex = GetWindowLongW(h, GWL_EXSTYLE), st = GetWindowLongW(h, GWL_STYLE);
+            if (ex & WS_EX_TRANSPARENT) continue;
+            if ((ex & WS_EX_NOACTIVATE) || ((ex & WS_EX_TOOLWINDOW) && (ex & WS_EX_LAYERED))) continue;
+            RECT r, x;
+            if (!GetWindowRect(h, &r) || !IntersectRect(&x, &r, &m)) continue;
+            wchar_t cls[64] = {}; GetClassNameW(h, cls, 64);
+            if (!wcscmp(cls, L"Shell_TrayWnd") || !wcscmp(cls, L"Shell_SecondaryTrayWnd")) continue;
+            if (mesa::IsDeskClass(cls)) break;
+            bool covers = r.left <= m.left && r.top <= m.top && r.right >= m.right && r.bottom >= m.bottom;
+            if (covers) { if (!(IsZoomed(h) && (st & WS_CAPTION) == WS_CAPTION)) return hm; break; }
+            if ((x.right - x.left) * (x.bottom - x.top) < monArea / 4) continue;
+            break;
+        }
+    }
+    return nullptr;
+}
+
 // Com mais de um monitor, só some o que está no monitor do app em tela cheia (a barra daquele monitor; o Dock
 // se ele estiver lá). Tela travada: tudo some.
 static void CheckFullscreen() {
@@ -685,6 +719,12 @@ static void CheckFullscreen() {
     bool locked = bloqueio::Active();
     bool fs = !locked && IsFullscreen(fg);
     HMONITOR fm = fs ? MonitorFromWindow(fg, MONITOR_DEFAULTTONEAREST) : nullptr;
+    if (!fs && !locked && (fm = FullByZOrder())) {
+        fs = true;
+        static HMONITOR logged;
+        if (fm != logged) Log(L"tela cheia: janela de cima cobre o monitor %p (não é a da frente)", fm);
+        logged = fm;
+    }
     {   // registro: quem fez o Dock e a barra de menus sumirem (uma vez por janela)
         static HWND visto;
         if (fs && fg != visto) {
@@ -868,7 +908,6 @@ static LRESULT CALLBACK MsgProc(HWND h, UINT m, WPARAM w, LPARAM l) {
         if (lastTheme < 0) lastTheme = themeNow();
         LoadSettings();
         ilha::Reload();
-        winultra::Reload();
         {   // barra_todos_monitores mudou: cria ou tira as barras dos monitores secundários (e a área de trabalho deles)
             static std::wstring lastAll = L"?";
             std::wstring all = shell::Setting(L"barra_todos_monitores", L"1");
@@ -1143,7 +1182,6 @@ int WINAPI wWinMain(HINSTANCE hi, HINSTANCE, PWSTR, int) {
     if (!soDock) bloqueio::Create(hi);  // tela de bloqueio do Sequoia (Win+L)
     notificacoes::Create(hi);  // Central de Notificações (clique no relógio da barra de menus)
     ilha::Create(hi);  // Ilha Dinâmica (ajuste ilha=1)
-    winultra::Start();  // WinUltra, a ilha de vidro (ajuste winultra=1)
     camada::Start();    // Chromium com a camada da GPU deslocada (Spotify): volta ao lugar
     if (!soDock) notarapida::Create(hi);  // canto inferior direito: Nota Rápida
     if (!soDock) progresso::Create(hi);  // copiar/mover/apagar: a janela de progresso do Finder no lugar da do Windows
@@ -1237,7 +1275,6 @@ int shell::RodarNativo(HINSTANCE hi, const std::wstring& dirBin, const std::wstr
     widgets::Create(hi);
     notificacoes::Create(hi);
     ilha::Create(hi);
-    winultra::Start();
     camada::Start();
     notarapida::Create(hi);
     progresso::Create(hi);

@@ -6614,9 +6614,16 @@ static LRESULT CALLBACK WndProc(HWND h, UINT m, WPARAM w, LPARAM l) {
         }
         return 0;
     }
-    case WM_MBUTTONUP:
-        TabClick(ToDip(GET_X_LPARAM(l), GET_Y_LPARAM(l)), true);
+    case WM_MBUTTONUP: {
+        D2D1_POINT_2F p = ToDip(GET_X_LPARAM(l), GET_Y_LPARAM(l));
+        if (TabClick(p, true)) return 0;
+        // middle click on a folder (list or sidebar): open it in a new tab, like Cmd+click on the Mac
+        int i = HitItem(p);
+        if (i >= 0 && i < (int)g_items.size() && g_items[i].dir) { NewTab(g_items[i].path); return 0; }
+        int s = HitSide(p);
+        if (s >= 0 && s < (int)g_side.size() && !g_side[s].path.empty()) { NewTab(g_side[s].path); return 0; }
         return 0;
+    }
     case WM_XBUTTONUP:
         if (GET_XBUTTON_WPARAM(w) == XBUTTON1) GoBack(); else GoForward();
         return TRUE;

@@ -86,6 +86,7 @@ struct Cfg {
     int timer = 0;     // 0, 5, 10 segundos
     int mode = 2;      // última ferramenta da barra: 0 tela inteira, 1 janela, 2 região
     bool thumb = true, remember = true, pointer = false, hasSel = false;
+    bool copy = true;  // a saved screenshot also goes to the clipboard (copiar=0 turns it off)
     RECT sel{};        // última região (pixels físicos da área de trabalho virtual)
 } g_cfg;
 
@@ -113,6 +114,7 @@ static void LoadCfg() {
         else if (k == L"miniatura") g_cfg.thumb = n != 0;
         else if (k == L"lembrar") g_cfg.remember = n != 0;
         else if (k == L"ponteiro") g_cfg.pointer = n != 0;
+        else if (k == L"copiar") g_cfg.copy = n != 0;
         else if (k == L"selecao") {
             RECT r{};
             if (swscanf_s(v.c_str(), L"%ld,%ld,%ld,%ld", &r.left, &r.top, &r.right, &r.bottom) == 4 && r.right - r.left >= 4 && r.bottom - r.top >= 4) { g_cfg.sel = r; g_cfg.hasSel = true; }
@@ -131,6 +133,7 @@ static void SaveCfg() {
     fwprintf(fp, L"destino=%d\ntemporizador=%d\nmodo=%d\nminiatura=%d\nlembrar=%d\nponteiro=%d\n", g_cfg.dest, g_cfg.timer, g_cfg.mode, g_cfg.thumb, g_cfg.remember, g_cfg.pointer);
     if (g_cfg.hasSel) fwprintf(fp, L"selecao=%ld,%ld,%ld,%ld\n", g_cfg.sel.left, g_cfg.sel.top, g_cfg.sel.right, g_cfg.sel.bottom);
     if (!g_cfg.other.empty()) fwprintf(fp, L"outro=%ls\n", g_cfg.other.c_str());
+    fwprintf(fp, L"copiar=%d\n", g_cfg.copy);
     fclose(fp);
 }
 
@@ -687,6 +690,10 @@ static void Deliver(std::vector<Img>& ims, const std::vector<float>& dpis, bool 
         bool ok = SavePng(ims[i], dpis[i], path);
         Logf(L"captura %dx%d (%.0f ppp) em %ls: %ls (%.0f ms)", ims[i].w, ims[i].h, dpis[i], path.c_str(), ok ? L"ok" : L"FALHOU", Now() - t0);
         if (ok) { SHChangeNotify(SHCNE_CREATE, SHCNF_PATHW | SHCNF_FLUSHNOWAIT, path.c_str(), nullptr); if (first.empty()) first = path; }
+    }
+    if (!first.empty() && g_cfg.copy) {  // saved AND on the clipboard, ready to paste
+        bool ok = ToClipboard(ims[0], dpis[0]);
+        Logf(L"captura também na área de transferência: %ls", ok ? L"ok" : L"FALHOU");
     }
     if (!first.empty()) AvisaShell(false);
     if (g_cfg.thumb && !first.empty()) ShowThumb(ims[0], first, where);

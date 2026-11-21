@@ -1484,20 +1484,18 @@ Page IlhaDinamica() {
     if (Setting(L"ilha", L"0") == L"1") {
         // estilo: notch (entalhe grudado no topo), ilha (pílula sempre na barra) ou só quando acontece algo
         Row est = Popup(L"Estilo", { L"Notch", L"Ilha", L"Só quando houver algo" },
-                        [] { std::wstring v = Setting(L"ilha_estilo", L"notch"); return v == L"ilha" ? 1 : v == L"notificacao" ? 2 : 0; },
+                        [] { bool lg = Setting(L"liquid_glass", L"0") == L"1" && Setting(L"leopard", L"0") != L"1";
+                             std::wstring v = Setting(L"ilha_estilo", lg ? L"ilha" : L"notch"); return v == L"ilha" ? 1 : v == L"notificacao" ? 2 : 0; },
                         [](int i) { SetSetting(L"ilha_estilo", i == 1 ? L"ilha" : i == 2 ? L"notificacao" : L"notch"); });
         ilha.push_back(est);
         ilha.push_back(Toggle(L"Abrir ao passar o ponteiro", on(L"ilha_passar", L"1"), set(L"ilha_passar")));
+        ilha.push_back(Toggle(L"Hora e data na ilha", on(L"ilha_relogio", L"0"), set(L"ilha_relogio"),
+                              L"A hora e a data (sem o dia da semana) saem da barra de menus e ficam na ilha. Nos outros monitores, o relógio vai para o meio da barra."));
         ilha.push_back(Toggle(L"Mostrar notificações na ilha", on(L"ilha_notificacoes", L"1"), set(L"ilha_notificacoes")));
         ilha.push_back(Toggle(L"Mostrar o volume na ilha", on(L"ilha_volume", L"1"), set(L"ilha_volume")));
         ilha.push_back(Toggle(L"Avisar “Copiado” ao copiar", on(L"ilha_copiado", L"1"), set(L"ilha_copiado"),
                               L"Um aviso rápido na ilha quando você copia um texto, uma imagem ou arquivos."));
     }
-    // WinUltra (src/shell/winultra.cpp, src/winultra): a ilha de vidro, um processo à parte que o Shell abre
-    p.groups.push_back(G({ Toggle(L"WinUltra", on(L"winultra", L"1"), set(L"winultra"),
-                                  L"A ilha de vidro do WinUltra no topo da tela: música, controles rápidos, CPU e rede, histórico do que você copiou, estante de arquivos e timers. Passe o ponteiro na linha brilhante ou aperte Ctrl+Alt+Space.") }, L"WinUltra"));
-    if (Setting(L"winultra", L"1") == L"1" && Setting(L"ilha", L"0") == L"1")
-        p.groups.push_back(G({ Note(L"Use uma ilha só: com o WinUltra ligado, deixe a Ilha Dinâmica do WacOS desligada. Mais opções do WinUltra no ícone dele na barra de menus.") }));
     p.groups.push_back(G(ilha, L"Ilha Dinâmica"));
     if (Setting(L"ilha", L"0") == L"1")
         p.groups.push_back(G({ Note(L"Na ilha também ficam a bolinha laranja (microfone) ou verde (câmera) em uso, o timer (aba Timer: pausar, parar, ±1 minuto) e o histórico do que você copiou (aba Transferência).") }));
@@ -1525,7 +1523,7 @@ Page PersonalizarDock() {
     bool tahoe = Setting(L"liquid_glass", L"0") == L"1";
     Row esp = Slider(L"Espaço entre os ícones", 0, 32, [] { return NumSetting(L"dock_espaco", 0); }, SetNum(L"dock_espaco"), L"Juntos", L"Separados");
     esp.hasDef = true; esp.def = 0;
-    Row marg = Slider(L"Distância da borda da tela", 0, 40, [] { return NumSetting(L"dock_margem", 5); }, SetNum(L"dock_margem"), L"Encostado", L"Longe");
+    Row marg = Slider(L"Distância da borda da tela", 0, 120, [] { return NumSetting(L"dock_margem", 5); }, SetNum(L"dock_margem"), L"Encostado", L"Longe");
     marg.hasDef = true; marg.def = 5;
     // no Mac a janela maximizada encosta no Dock; quem quiser um respiro entre os dois escolhe aqui (issue #8)
     Row folga = Slider(L"Espaço acima das janelas maximizadas", 0, 24, [] { return NumSetting(L"dock_folga", 0); }, SetNum(L"dock_folga"), L"Encostado", L"Longe");
@@ -2531,7 +2529,7 @@ std::vector<SideItem>& SidebarItems() {
         { L"Aparência", 1, 0x1C1C1E, Aparencia, 1, L"tema escuro claro destaque cor", L"aparencia" },
         { L"Apple Intelligence e Siri", 0xE720, C_PURPLE, Inteligencia, 1, L"copilot fala voz assistente", L"inteligencia" },
         { L"Central de Controle", 0xE9E9, C_GRAY, CentralControle, 1, L"barra de menus relógio ícones microfone câmera", L"central" },
-        { L"Ilha Dinâmica", 0xE7F4, 0x1C1C1E, IlhaDinamica, 1, L"notch ilha dinâmica música timer copiado estante winultra", L"ilha" },
+        { L"Ilha Dinâmica", 0xE7F4, 0x1C1C1E, IlhaDinamica, 1, L"notch ilha dinâmica música timer copiado estante", L"ilha" },
         { L"Mesa e Dock", 0xE7F4, 0x1C1C1E, MesaDock, 1, L"dock tamanho ampliação ocultar janelas", L"dock" },
         { L"Telas", 0xE706, C_BLUE, Telas, 1, L"monitor brilho resolução escala night shift", L"telas" },
         { L"Protetor de Tela", 0xE8B9, C_CYAN, Protetor, 1, L"proteção de tela", L"protetor" },

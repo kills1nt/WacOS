@@ -55,7 +55,7 @@ namespace wmc = winrt::Windows::Media::Control;
 namespace {
 
 const UINT WM_IL_FRAME = WM_APP + 1, WM_IL_MEDIA = WM_APP + 2, WM_IL_CAPS = WM_APP + 3, WM_IL_PRIV = WM_APP + 4, WM_IL_DOWN = WM_APP + 5;
-const UINT_PTR TM_HOVER = 1, TM_LEAVE = 2, TM_PEEK = 3, TM_HUD = 4, TM_EQ = 5, TM_PAUSE = 6, TM_GONE = 7, TM_TICK = 8, TM_STATS = 9, TM_CAPS = 10;
+const UINT_PTR TM_HOVER = 1, TM_LEAVE = 2, TM_PEEK = 3, TM_HUD = 4, TM_EQ = 5, TM_PAUSE = 6, TM_GONE = 7, TM_TICK = 8, TM_STATS = 9, TM_CAPS = 10, TM_CLOCK = 11;
 
 enum Style { S_NOTCH, S_ILHA, S_AVISO };
 enum Mode { M_HIDDEN, M_IDLE, M_MEDIA, M_TIMER, M_HUD, M_PEEK, M_OPEN };
@@ -89,6 +89,7 @@ struct Spr {
 HWND g_wnd;
 ui::GpuSurface g_s;
 bool g_on, g_notesOn, g_volOn, g_hoverOpen, g_copyOn;
+bool g_clock;                // ilha_relogio=1: the clock (time and the short date, Nov 22) lives in the island, not in the menu bar
 bool g_copyFiles;            // o aviso "Copiado" é de arquivos (CF_HDROP)
 bool g_shotClip;             // o aviso da Captura de Tela: copiada (true) ou salva
 DWORD g_copyAt;              // última vez que mostrou (apps que regravam a área de transferência em rajada)
@@ -722,6 +723,29 @@ bool Notch() { return g_style == S_NOTCH; }
 float HeadH() { return Notch() ? g_barPt : 28.f; }   // cabeçalho das abas (no notch, a própria altura da barra)
 float TopOff() { return Notch() ? 0.f : std::max(0.f, (g_barPt - PILL_H) / 2); }
 
+// ---- the clock in the island (ilha_relogio=1): "Nov 22" dimmed and the time in white, no weekday
+void ClockParts(std::wstring& date, std::wstring& time) {
+    SYSTEMTIME st; GetLocalTime(&st);
+    std::wstring m = idioma::Cap(idioma::MonthName(st.wMonth, true));
+    while (!m.empty() && m.back() == L'.') m.pop_back();
+    date = m + L" " + std::to_wstring(st.wDay);
+    wchar_t t[16]; swprintf_s(t, L"%02d:%02d", st.wHour, st.wMinute);
+    time = t;
+}
+float ClockW() {
+    std::wstring d, t; ClockParts(d, t);
+    return ui::TextWidth(g_tfSub, d) + 6 + ui::TextWidth(g_tfWing, t);
+}
+void DrawClock(ID2D1DeviceContext* dc, ID2D1SolidColorBrush* br, D2D1_RECT_F box, float cy) {
+    std::wstring d, t; ClockParts(d, t);
+    float wd = ui::TextWidth(g_tfSub, d), wt = ui::TextWidth(g_tfWing, t);
+    float x = (box.left + box.right) / 2 - (wd + 6 + wt) / 2;
+    br->SetColor(D2D1::ColorF(1, 1, 1, 0.62f));
+    dc->DrawTextW(d.c_str(), (UINT32)d.size(), g_tfSub, D2D1::RectF(x, cy - 8, x + wd + 4, cy + 8), br);
+    br->SetColor(D2D1::ColorF(1, 1, 1, 0.96f));
+    dc->DrawTextW(t.c_str(), (UINT32)t.size(), g_tfWing, D2D1::RectF(x + wd + 6, cy - 8, x + wd + 6 + wt + 4, cy + 8), br);
+}
+
 Mode Want() {
     if (!g_on || g_full) return M_HIDDEN;
     if (g_peekOn) return M_PEEK;
@@ -752,18 +776,20 @@ Size SizeOf(Mode m) {
             default:      return { NOTCH_W * 0.7f, H * 0.5f, 0, 4 };
             }
         }
+        const float clk = g_clock ? ClockW() : 0;
         switch (m) {
-        case M_IDLE:  return { NOTCH_W + priv, H, 6, 9 };
-        case M_MEDIA: case M_TIMER: return { NOTCH_W + 2 * WING_ACT + priv, H, 6, 9 };
+        case M_IDLE:  return { std::max(NOTCH_W, clk + 40) + priv, H, 6, 9 };
+        case M_MEDIA: case M_TIMER: return { std::max(NOTCH_W, clk + 90) + 2 * WING_ACT + priv, H, 6, 9 };
         case M_HUD:   return { NOTCH_W + 2 * WING_HUD, H, 6, 9 };
         case M_PEEK:  return { 320 + 2 * 12, H + 50, 12, 20 };
         case M_OPEN:  return { OPEN_W + 2 * 19, H + BODY_H, 19, 24 };  // largura com as orelhas (Atoll: 19 em cima, 24 embaixo)
         default:      return { NOTCH_W * 0.7f, H * 0.5f, 4, 6 };
         }
     }
+    const float clk = g_clock ? ClockW() : 0;
     switch (m) {
-    case M_IDLE:  return { 112 + priv, PILL_H, 11, 11 };
-    case M_MEDIA: case M_TIMER: return { 150 + priv, PILL_H, 11, 11 };
+    case M_IDLE:  return { std::max(112.f, clk + 28) + priv, PILL_H, 11, 11 };
+    case M_MEDIA: case M_TIMER: return { 150 + (g_clock ? clk + 8 : 0) + priv, PILL_H, 11, 11 };
     case M_HUD:   return { 176, PILL_H, 11, 11 };
     case M_PEEK:  return { 320, 54, 20, 20 };
     case M_OPEN: {  // cantos do cartão por tema: Golden Gate maiores (macOS 27), Leopard o HUD do 10.5
@@ -782,6 +808,10 @@ void UpdateTimers() {
     if (g_tRun && !g_tPaused) SetTimer(g_wnd, TM_TICK, 250, nullptr);  // corre mesmo escondido: precisa avisar ao acabar
     else KillTimer(g_wnd, TM_TICK);
     (void)tick;
+    if (g_shown && g_clock) {  // repaint when the minute turns (and the size, if the text got wider)
+        SYSTEMTIME st; GetLocalTime(&st);
+        SetTimer(g_wnd, TM_CLOCK, (60 - st.wSecond) * 1000 - st.wMilliseconds + 30, nullptr);
+    } else KillTimer(g_wnd, TM_CLOCK);
     if (g_shown && g_mode == M_OPEN && g_tab == TAB_STATS) {
         if (g_st.cpu.empty() && !g_lastKern) SampleStats();
         SetTimer(g_wnd, TM_STATS, 1000, nullptr);
@@ -1308,6 +1338,7 @@ void DrawContent(ID2D1DeviceContext* dc, ID2D1SolidColorBrush* br, Mode m, doubl
     D2D1_RECT_F closedBox = D2D1::RectF(b.left, b.top, b.right - (Notch() ? 2 : 0), b.top + closedH);
     switch (m) {
     case M_IDLE:
+        if (g_clock) DrawClock(dc, br, closedBox, cy);
         DrawPrivDot(dc, br, closedBox);
         break;
     case M_MEDIA:
@@ -1320,6 +1351,7 @@ void DrawContent(ID2D1DeviceContext* dc, ID2D1SolidColorBrush* br, Mode m, doubl
         }
         if (g_tRun) Text(dc, br, Clock(TimerLeft() / 1000), g_tfWingR, D2D1::RectF(wingR - 60, cy - 8, wingR, cy + 8), g_tPaused ? GRAY : ORANGE);
         else DrawBars(dc, br, D2D1::RectF(wingR - 18, cy - 6, wingR, cy + 6));
+        if (g_clock) DrawClock(dc, br, D2D1::RectF(wingL + 22, b.top, wingR - (g_tRun ? 62 : 22), b.top + closedH), cy);
         DrawPrivDot(dc, br, closedBox);
         break;
     }
@@ -1500,7 +1532,12 @@ void Paint() {
     dc->PushLayer(D2D1::LayerParameters1(D2D1::InfiniteRect(), geo, D2D1_ANTIALIAS_MODE_PER_PRIMITIVE, D2D1::IdentityMatrix(), alpha), nullptr);
     // o corpo: o notch é sempre preto; a pílula muda com o tema
     D2D1_COLOR_F fill = D2D1::ColorF(0, 0, 0, 1);
-    if (pill && Glassy()) fill = D2D1::ColorF(0.055f, 0.055f, 0.065f, 0.95f);
+    if (pill && Glassy()) {
+        // Liquid Glass: smoked glass instead of a black slab, the menu bar's blurred wallpaper shows through. More
+        // tint when it grows (the open card and the notifications carry text over any wallpaper)
+        float grow = std::clamp((p.bottom - p.top - PILL_H) / 40.f, 0.f, 1.f);
+        fill = D2D1::ColorF(0.07f, 0.07f, 0.085f, 0.66f + 0.20f * grow);
+    }
     if (pill && g_theme == TH_LEOPARD) fill = D2D1::ColorF(0.10f, 0.10f, 0.11f, 0.90f);
     br->SetColor(fill);
     if (leoNotch) {
@@ -1570,7 +1607,24 @@ void Paint() {
         line->Release();
     }
     if (pill && alpha > 0.01f) {
-        if (Glassy()) liquid::Rim(dc, p, rad, true, g_theme == TH_GOLDEN ? 1.f : 0.8f, 0.35f);
+        if (Glassy()) {
+            liquid::Rim(dc, p, rad, true, g_theme == TH_GOLDEN ? 1.f : 0.8f, 0.35f);
+            // the lens edge: a thin bright line along the bottom half, light bent through the glass (zakisheriff's
+            // Liquid Glass: refraction at the rim) - a soft white gradient from the bottom edge upward
+            ID2D1GradientStopCollection* gs = nullptr;
+            D2D1_GRADIENT_STOP st[] = { { 0, D2D1::ColorF(1, 1, 1, 0) }, { 1, D2D1::ColorF(1, 1, 1, 0.10f * alpha) } };
+            dc->CreateGradientStopCollection(st, 2, &gs);
+            ID2D1LinearGradientBrush* lg = nullptr;
+            float hh = std::min(10.f, (p.bottom - p.top) / 2);
+            if (gs) dc->CreateLinearGradientBrush(D2D1::LinearGradientBrushProperties({ 0, p.bottom - hh }, { 0, p.bottom }), gs, &lg);
+            if (lg && geo) {
+                dc->PushLayer(D2D1::LayerParameters1(D2D1::InfiniteRect(), geo, D2D1_ANTIALIAS_MODE_PER_PRIMITIVE), nullptr);
+                dc->FillRectangle(D2D1::RectF(p.left, p.bottom - hh, p.right, p.bottom), lg);
+                dc->PopLayer();
+            }
+            if (lg) lg->Release();
+            if (gs) gs->Release();
+        }
         else {
             br->SetColor(D2D1::ColorF(1, 1, 1, (g_theme == TH_LEOPARD ? 0.32f : 0.13f) * alpha));
             dc->DrawRoundedRectangle(D2D1::RoundedRect(D2D1::RectF(p.left + 0.5f, p.top + 0.5f, p.right - 0.5f, p.bottom - 0.5f), std::max(0.f, rad - 0.5f), std::max(0.f, rad - 0.5f)), br, 1);
@@ -1592,6 +1646,12 @@ void Frame() {
     if (g_springKind == 1) { resp = 0.42f; damp = 0.78f; }
     else if (g_springKind == 2) { resp = 0.45f; damp = 1.0f; }
     if (g_theme == TH_LEOPARD) { resp = g_springKind == 1 ? 0.36f : 0.32f; damp = 1.0f; }
+    else if (Glassy() && !Notch()) {
+        // Liquid Glass pill: a jelly settle (iOS 26: swells, overshoots a little, wobbles once) on open and on
+        // activity changes; closing stays calm
+        if (g_springKind == 1) { resp = 0.46f; damp = 0.68f; }
+        else if (g_springKind == 0) { resp = 0.38f; damp = 0.74f; }
+    }
     if (anim::reduceMotion) { resp = 0.2f; damp = 1; }
     bool moving = false;
     moving |= g_w.Step(dt, resp, damp, 0.05f);
@@ -1774,6 +1834,7 @@ LRESULT CALLBACK Proc(HWND h, UINT m, WPARAM w, LPARAM l) {
         case TM_PAUSE: KillTimer(h, TM_PAUSE); g_pauseHold = false; Update(); break;
         case TM_GONE: KillTimer(h, TM_GONE); PostMessageW(h, WM_IL_MEDIA, 1, 0); break;  // w = 1: aplica mesmo sem mídia
         case TM_STATS: SampleStats(); if (!g_running) Paint(); break;
+        case TM_CLOCK: KillTimer(h, TM_CLOCK); Update(); if (!g_running) Paint(); break;
         case TM_CAPS: {
             KillTimer(h, TM_CAPS);
             g_caps = (GetKeyState(VK_CAPITAL) & 1) != 0;
@@ -1936,12 +1997,13 @@ void ilha::Reload() {
     if (!g_wnd) return;
     bool was = g_on;
     g_on = shell::Setting(L"ilha", L"0") == L"1";
-    std::wstring st = shell::Setting(L"ilha_estilo", L"notch");
+    std::wstring st = shell::Setting(L"ilha_estilo", liquid::On() && !liquid::Leopard() ? L"ilha" : L"notch");
     Style ns = st == L"ilha" ? S_ILHA : st == L"notificacao" ? S_AVISO : S_NOTCH;
     g_notesOn = shell::Setting(L"ilha_notificacoes", L"1") != L"0";
     g_volOn = shell::Setting(L"ilha_volume", L"1") != L"0";
     g_copyOn = shell::Setting(L"ilha_copiado", L"1") != L"0";
     g_hoverOpen = shell::Setting(L"ilha_passar", L"1") != L"0";
+    g_clock = shell::Setting(L"ilha_relogio", L"0") == L"1";
     if (Theme th = ThemeNow(); th != g_theme) { g_theme = th; MakeFonts(); Log(L"ilha: tema %d", (int)th); }
     if (g_on) {
         MediaStart();
@@ -2061,6 +2123,7 @@ void ilha::Captura(bool copiada) {
 }
 
 bool ilha::On() { return g_on; }
+std::wstring ilha::ClockText() { std::wstring d, t; ClockParts(d, t); return d + L"  " + t; }
 
 // microfone/câmera em uso (1 microfone, 2 câmera) para a barra de menus; a 1ª chamada começa a vigiar o registro
 int ilha::Privacidade() { StartPrivacy(); return g_priv; }

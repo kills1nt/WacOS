@@ -669,7 +669,7 @@ bool WantHidden() {
     // distância do ponteiro até a borda do Dock (embaixo, a de baixo; dos lados, a esquerda ou a direita)
     bool along = Vert() ? c.y >= mon.top && c.y < mon.bottom : c.x >= mon.left && c.x < mon.right;
     LONG dist = Pos() == 1 ? c.x - mon.left : Pos() == 2 ? mon.right - 1 - c.x : mon.bottom - 1 - c.y;
-    bool nearEdge = along && dist >= 0 && (dist <= 1 || (g_reveal > 0.5f && dist < (LONG)((g_bg.bottom - g_bg.top + 30) * sc)));
+    bool nearEdge = along && dist >= 0 && (dist <= 1 || (g_reveal > 0.5f && dist < (LONG)((g_bg.bottom - g_bg.top + MARGIN + 30) * sc)));  // + the gap to the edge (dock_margem)
     if (g_smart && GetTickCount() - g_coverAt >= 100) { g_coverAt = GetTickCount(); g_covered = WindowOverDock(); }
     return (!g_smart || g_covered) && !nearEdge && g_press < 0;
 }
@@ -1836,7 +1836,7 @@ static void ReadSettings() {
     auto num = [](const wchar_t* k, float def) { std::wstring v = shell::Setting(k, L""); return v.empty() ? def : (float)_wtof(v.c_str()); };
     g_espaco = std::clamp(num(L"dock_espaco", 0), 0.f, 48.f);
     g_folgaPt = std::clamp(num(L"dock_folga", 0), 0.f, 24.f);
-    g_margemPt = num(L"dock_margem", -1); if (g_margemPt >= 0) g_margemPt = std::min(g_margemPt, 80.f);
+    g_margemPt = num(L"dock_margem", -1); if (g_margemPt >= 0) g_margemPt = std::min(g_margemPt, 160.f);
     g_raioPct = num(L"dock_raio", -1); if (g_raioPct >= 0) g_raioPct = std::min(g_raioPct / 100.f, 1.f);
     g_vidroOpac = num(L"dock_opacidade", -1); if (g_vidroOpac >= 0) g_vidroOpac = std::min(g_vidroOpac / 100.f, 1.f);
     std::wstring cor = shell::Setting(L"dock_cor", L"auto");

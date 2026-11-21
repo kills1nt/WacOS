@@ -449,12 +449,6 @@ void Hide();                                 // clique, arrasto, menu: some já
 bool Showing(const std::wstring& appId);
 }
 
-namespace winultra {  // WinUltra (winultra.cpp; src\winultra): a ilha de vidro, processo à parte; ajuste winultra=1
-void Start();   // abre bin\WinUltra.exe --wacos (se ligado e ainda não aberto)
-void Stop();    // fecha o que o Shell abriu
-void Reload();  // ajustes mudaram: abre ou fecha
-}
-
 namespace ilha {  // Ilha Dinâmica (ilha.cpp): notch/pílula preta no topo (música, timer, avisos, Estante...); ajuste ilha=1, ilha_estilo
 bool Create(HINSTANCE hi);
 void Reload();                  // ajustes mudaram (ilha, ilha_estilo, ilha_notificacoes, ilha_volume, ilha_passar)
@@ -468,6 +462,7 @@ void CapsLock();                // a tecla Caps Lock foi apertada (gancho de tec
 void PrivacidadeMudou();        // a bandeja mudou: relê o ícone de privacidade do Windows (tray::PrivacyBits)
 void Captura(bool copiada);     // a Captura de Tela terminou: aviso rápido "Captura feita" / "Captura copiada"
 int Privacidade();              // 1 microfone, 2 câmera em uso (bits); a 1ª chamada liga a vigia; mudou = menubar::Update()
+std::wstring ClockText();       // "Nov 22  14:30": the island's clock (ilha_relogio=1), also used centred on the other monitors' bars
 }
 namespace palco {  // Organizador Visual / Stage Manager (palco.cpp): ajuste organizador=1
 bool On();

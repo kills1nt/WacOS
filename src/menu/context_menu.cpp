@@ -429,6 +429,33 @@ void ctxmenu::SetGlass(const Glass& g) { g_glass = g; g_glassSet = true; }
 
 // Tema Tahoe ligado (Ajustes > Aparência: liquid_glass=1 em %APPDATA%\Shell\ajustes.txt). O Shell avisa
 // pelo SetGlass; os outros apps (Finder, Notas...) leem o arquivo, no máximo a cada 2 s.
+// The highlight colour of the selected item: the accent chosen in System Settings > Appearance (destaque=),
+// like on the Mac (it was always blue). Read from ajustes.txt at most every 2 s, also inside the Shell.
+static D2D1_COLOR_F MenuAccent(bool dark) {
+    static DWORD last; static UINT32 rgb = 0;
+    if (!last || GetTickCount() - last >= 2000) {
+        last = GetTickCount() | 1;
+        rgb = 0;
+        wchar_t ad[MAX_PATH] = {};
+        FILE* f = nullptr;
+        if (GetEnvironmentVariableW(L"APPDATA", ad, MAX_PATH) && !_wfopen_s(&f, (std::wstring(ad) + L"\\Shell\\ajustes.txt").c_str(), L"r, ccs=UTF-8") && f) {
+            static const std::pair<const wchar_t*, UINT32> cols[] = {
+                { L"roxo", 0x953D96 }, { L"rosa", 0xF74F9E }, { L"vermelho", 0xE0383E }, { L"laranja", 0xF7821B },
+                { L"amarelo", 0xFCB827 }, { L"verde", 0x62BA46 }, { L"grafite", 0x8C8C8C }, { L"lavanda", 0x98A8D9 } };
+            wchar_t line[512];
+            while (fgetws(line, 512, f)) {
+                if (wcsncmp(line, L"destaque=", 9)) continue;
+                std::wstring v = line + 9;
+                while (!v.empty() && (v.back() == L'\n' || v.back() == L'\r' || v.back() == L' ')) v.pop_back();
+                for (auto& [n, c] : cols) if (v == n) rgb = c;
+            }
+            fclose(f);
+        }
+    }
+    if (!rgb) rgb = dark ? 0x0A84FF : 0x007AFF;
+    return D2D1::ColorF(((rgb >> 16) & 255) / 255.f, ((rgb >> 8) & 255) / 255.f, (rgb & 255) / 255.f, 1);
+}
+
 static bool g_fileGolden;  // golden_gate=1 lido do arquivo (apps fora do Shell)
 static bool g_fileLeopard;  // leopard=1 lido do arquivo (apps fora do Shell)
 static bool Tahoe() {
@@ -1038,7 +1065,8 @@ static void DrawLevel(Session& s, int li) {
     if (Tahoe()) bg = dk ? D2D1::ColorF(0.165f, 0.165f, 0.172f, 0.85f) : D2D1::ColorF(0.96f, 0.96f, 0.965f, 0.77f);
     if (g_glass.alpha) bg.a = g_glass.alpha(bg.a);
     // macOS 27 Golden Gate: o menu de contexto é vidro fosco (leitoso), não o Liquid Glass transparente do Dock
-    if (Golden()) { bg = dk ? D2D1::ColorF(0.17f, 0.165f, 0.165f, 0.88f) : D2D1::ColorF(0.95f, 0.945f, 0.94f, 0.84f); }
+    // more see-through than before (0.88): on the Mac the blurred content shows clearly behind the menu
+    if (Golden()) { bg = dk ? D2D1::ColorF(0.19f, 0.185f, 0.185f, 0.66f) : D2D1::ColorF(0.96f, 0.955f, 0.95f, 0.66f); }
     const bool leo = Leopard();
     if (leo) bg = D2D1::ColorF(1, 1, 1, 0.94f);  // Leopard: sempre claro (o 10.5 não tinha modo escuro)
     ID2D1SolidColorBrush *text, *dim, *sep, *hdr, *accent, *white;
@@ -1047,7 +1075,7 @@ static void DrawLevel(Session& s, int li) {
     rt->CreateSolidColorBrush(dkT ? D2D1::ColorF(1, 1, 1, 0.30f) : D2D1::ColorF(0, 0, 0, 0.30f), &dim);
     rt->CreateSolidColorBrush(dkT ? D2D1::ColorF(1, 1, 1, 0.12f) : D2D1::ColorF(0, 0, 0, leo ? 0.14f : 0.10f), &sep);
     rt->CreateSolidColorBrush(dkT ? D2D1::ColorF(1, 1, 1, 0.45f) : D2D1::ColorF(0, 0, 0, 0.45f), &hdr);
-    rt->CreateSolidColorBrush(D2D1::ColorF(0.0f, 0.39f, 0.88f, 1.0f), &accent);
+    rt->CreateSolidColorBrush(MenuAccent(dk), &accent);
     rt->CreateSolidColorBrush(D2D1::ColorF(1, 1, 1, 1), &white);
 
     if (!L.comp) rt->BeginDraw();

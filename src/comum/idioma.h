@@ -19,7 +19,7 @@
 namespace idioma {
 
 // A ordem importa: PT = 0 e EN = 1, como o antigo Set(bool en).
-enum Lang { PT, EN, ES, FR, DE, IT, JA, ZH, KO, RU, PL, TR, COUNT };
+enum Lang { PT, EN, ES, FR, DE, IT, JA, ZH, KO, RU, PL, TR, UK, COUNT };
 
 struct Info { const wchar_t* code; const wchar_t* locale; const wchar_t* native; };
 // O nome de cada idioma na própria língua (lista em Ajustes > Geral > Idioma).
@@ -28,10 +28,10 @@ inline constexpr Info kInfo[COUNT] = {
     { L"es", L"es-ES", L"Español" }, { L"fr", L"fr-FR", L"Français" }, { L"de", L"de-DE", L"Deutsch" },
     { L"it", L"it-IT", L"Italiano" }, { L"ja", L"ja-JP", L"日本語" }, { L"zh", L"zh-CN", L"简体中文" },
     { L"ko", L"ko-KR", L"한국어" }, { L"ru", L"ru-RU", L"Русский" }, { L"pl", L"pl-PL", L"Polski" },
-    { L"tr", L"tr-TR", L"Türkçe" },
+    { L"tr", L"tr-TR", L"Türkçe" }, { L"uk", L"uk-UA", L"Українська" },
 };
 // Ordem da lista no Ajustes (inglês primeiro, depois as línguas europeias e as asiáticas).
-inline constexpr int kMenuOrder[COUNT] = { EN, PT, ES, FR, DE, IT, PL, RU, TR, JA, KO, ZH };
+inline constexpr int kMenuOrder[COUNT] = { EN, UK, PT, ES, FR, DE, IT, PL, RU, TR, JA, KO, ZH };
 
 inline int g_lang = -1;  // -1 = ainda não leu o ajustes.txt
 
@@ -115,6 +115,9 @@ inline const Dict& MapPl() { static const Pair t[] = {
 inline const Dict& MapTr() { static const Pair t[] = {
 #include "idioma_tr.inc"
 }; IDIOMA_TABELA(t); }
+inline const Dict& MapUk() { static const Pair t[] = {
+#include "idioma_uk.inc"
+}; IDIOMA_TABELA(t); }
 #undef IDIOMA_TABELA
 
 inline const Dict* MapFor(int lang) {
@@ -130,6 +133,7 @@ inline const Dict* MapFor(int lang) {
     case RU: return &MapRu();
     case PL: return &MapPl();
     case TR: return &MapTr();
+    case UK: return &MapUk();
     default: return nullptr;  // português: o texto do código
     }
 }
@@ -172,6 +176,7 @@ inline const wchar_t* DatePattern(int kind) {
         /* ru */ { L"dddd, d MMMM", L"ddd, d MMM", L"d MMMM yyyy 'г.'", L"MMMM yyyy", L"d MMM yyyy 'г.'" },
         /* pl */ { L"dddd, d MMMM", L"ddd, d MMM", L"d MMMM yyyy", L"MMMM yyyy", L"d MMM yyyy" },
         /* tr */ { L"d MMMM dddd", L"d MMM ddd", L"d MMMM yyyy", L"MMMM yyyy", L"d MMM yyyy" },
+        /* uk */ { L"dddd, d MMMM", L"ddd, d MMM", L"d MMMM yyyy 'р.'", L"MMMM yyyy", L"d MMM yyyy 'р.'" },
     };
     return P[Current()][kind >= 0 && kind < D_COUNT ? kind : D_LONG];
 }
@@ -215,6 +220,7 @@ inline const wchar_t* Compass(int k) {
         { L"N", L"L", L"S", L"O" }, { L"N", L"E", L"S", L"W" }, { L"N", L"E", L"S", L"O" }, { L"N", L"E", L"S", L"O" },
         { L"N", L"O", L"S", L"W" }, { L"N", L"E", L"S", L"O" }, { L"北", L"東", L"南", L"西" }, { L"北", L"东", L"南", L"西" },
         { L"북", L"동", L"남", L"서" }, { L"С", L"В", L"Ю", L"З" }, { L"N", L"E", L"S", L"W" }, { L"K", L"D", L"G", L"B" },
+        { L"Пн", L"Сх", L"Пд", L"Зх" },
     };
     return C[Current()][k & 3];
 }

@@ -19,7 +19,7 @@ New-Item -ItemType Directory -Force "$pkg\bin" | Out-Null
 
 # programas: só o que o Shell usa (bin\ferramentas, bin\obj, logs e cópias .run/.old ficam de fora)
 $progs = 'WacOSShell.exe', 'WacOSFinder.exe', 'WacOSSettings.exe', 'WacOSActivityMonitor.exe', 'WacOSTerminal.exe',
-         'WacOSCalculator.exe', 'WacOSNotes.exe', 'WacOSScreenshot.exe', 'WacOSPreview.exe', 'WacOSReminders.exe', 'WacOSCalendar.exe', 'WacOSTextEdit.exe', 'WacOSClock.exe', 'WacOSWeather.exe', 'WacOSContacts.exe', 'WacOSPhotos.exe', 'WacOSTimeMachine.exe', 'WacOSMusic.exe', 'WacOSQuickTime.exe', 'WacOSForceQuit.exe', 'WacOSTitleBars.exe', 'WinUltra.exe', 'WacOSWindow.dll', 'WacOSWindow32.dll', 'WacOSGancho.dll', 'WacOSGancho32.dll',
+         'WacOSCalculator.exe', 'WacOSNotes.exe', 'WacOSScreenshot.exe', 'WacOSPreview.exe', 'WacOSReminders.exe', 'WacOSCalendar.exe', 'WacOSTextEdit.exe', 'WacOSClock.exe', 'WacOSWeather.exe', 'WacOSContacts.exe', 'WacOSPhotos.exe', 'WacOSTimeMachine.exe', 'WacOSMusic.exe', 'WacOSQuickTime.exe', 'WacOSForceQuit.exe', 'WacOSTitleBars.exe', 'WacOSWindow.dll', 'WacOSWindow32.dll', 'WacOSGancho.dll', 'WacOSGancho32.dll',
          'DialogoMac.dll', 'DialogoMac32.dll'
 if ($SemSistema) { $progs = $progs | Where-Object { $_ -notlike 'DialogoMac*' } }
 $progs += 'versao.txt'  # a versão (o GitHub Actions grava; o atualizador compara)

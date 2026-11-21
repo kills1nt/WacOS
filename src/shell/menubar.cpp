@@ -488,6 +488,41 @@ const std::vector<BYTE>& IconPixels(HICON ic, UINT px) {
 }
 
 // ---- desenho
+// The menu at the left: the Hermes girl (icones\hermes-logo.png, a template mask like the Apple logo: black with
+// alpha, tinted with the bar's text colour). barra_logo=apple keeps the Apple logo. false = no mask file.
+bool DrawHermesLogo(ID2D1RenderTarget* rt, D2D1_RECT_F box, D2D1_COLOR_F col) {
+    if (shell::Setting(L"barra_logo", L"hermes") != L"hermes") return false;
+    static std::vector<BYTE> mask; static UINT mw = 0, mh = 0; static bool tried = false;
+    if (!tried) {
+        tried = true;
+        std::wstring p = shell::dir.substr(0, shell::dir.find_last_of(L'\\')) + L"\\icones\\hermes-logo.png";
+        if (!ui::LoadPng(p, mw, mh, mask)) { mask.clear(); Log(L"barra: %ls não abriu", p.c_str()); }
+    }
+    if (mask.empty()) return false;
+    // area-average the 256 px mask down to the exact pixel size (bilinear from 256 to ~20 px only sampled a few
+    // texels and the face turned to noise), then draw it 1:1 on the pixel grid
+    float dx = 96, dy = 96; rt->GetDpi(&dx, &dy); float sc = dx / 96.f;
+    UINT n = (UINT)std::max(8L, std::lround((box.right - box.left) * sc));
+    std::vector<BYTE> px((size_t)n * n * 4);
+    for (UINT y = 0; y < n; y++)
+        for (UINT x = 0; x < n; x++) {
+            UINT x0 = x * mw / n, x1 = std::max(x0 + 1, (x + 1) * mw / n), y0 = y * mh / n, y1 = std::max(y0 + 1, (y + 1) * mh / n);
+            UINT sum = 0, cnt = 0;
+            for (UINT yy = y0; yy < y1; yy++) for (UINT xx = x0; xx < x1; xx++) { sum += mask[((size_t)yy * mw + xx) * 4 + 3]; cnt++; }
+            float a = std::min(1.f, sum / (255.f * cnt) * 1.15f) * col.a;
+            size_t k = ((size_t)y * n + x) * 4;
+            px[k] = (BYTE)std::lround(col.b * a * 255); px[k + 1] = (BYTE)std::lround(col.g * a * 255);
+            px[k + 2] = (BYTE)std::lround(col.r * a * 255); px[k + 3] = (BYTE)std::lround(a * 255);
+        }
+    ID2D1Bitmap* bmp = ui::Bitmap(rt, n, n, px);
+    if (!bmp) return false;
+    float cx = (box.left + box.right) / 2 * sc, cy = (box.top + box.bottom) / 2 * sc;
+    float l0 = std::round(cx - n / 2.f) / sc, t0 = std::round(cy - n / 2.f) / sc;
+    rt->DrawBitmap(bmp, D2D1::RectF(l0, t0, l0 + n / sc, t0 + n / sc), 1, D2D1_BITMAP_INTERPOLATION_MODE_NEAREST_NEIGHBOR);
+    bmp->Release();
+    return true;
+}
+
 void DrawLogo(ID2D1RenderTarget* rt, ID2D1SolidColorBrush* br, float cx, float cy) {
     // logo próprio (não usamos a marca da Apple): quatro quadradinhos arredondados
     float s = 5.4f, g = 1.6f;
@@ -707,7 +742,8 @@ void Render() {
     float x = liquid::On() ? 10.f : 8.f;
     add(D2D1::RectF(x, 0, x + 34, H), K_LOGO, 0);
     br->SetColor(litNow ? D2D1::ColorF(1, 1, 1) : fgc);
-    if (leo && !litNow) {
+    if (DrawHermesLogo(rt, D2D1::RectF(x + 6, H / 2 - 10.5f, x + 27, H / 2 + 10.5f), litNow ? D2D1::ColorF(1, 1, 1) : fgc)) {}
+    else if (leo && !litNow) {
         // Leopard: a maçã grafite brilhante do 10.5 (a azul era a do Tiger): cinza claro em cima, quase preto embaixo;
         // aberta, fica branca
         D2D1_GRADIENT_STOP st[3] = { { 0, D2D1::ColorF(0.62f, 0.62f, 0.63f, 1) }, { 0.45f, D2D1::ColorF(0.36f, 0.36f, 0.37f, 1) }, { 1, D2D1::ColorF(0.16f, 0.16f, 0.17f, 1) } };
@@ -754,13 +790,23 @@ void Render() {
         auto bx = slot(15, K_SPOT, 0);
         if (!sym(L"magnifyingglass", bx, 15)) rt->DrawTextW(L"", 1, g_tfIcon, bx, br);
     }
-    {
+    // Dynamic Island with the clock (ilha_relogio=1): the primary bar has no clock (the island shows it) and the
+    // bars of the other monitors show it in the middle
+    const bool clockIsland = ilha::On() && shell::Setting(L"ilha_relogio", L"0") == L"1";
+    if (!clockIsland) {
         std::wstring t = ClockText();
         float w = ui::TextWidth(tfN, t) + 2 * PAD;
         add(D2D1::RectF(r - w, 0, r, H), K_CLOCK, 0);
         br->SetColor(litNow ? D2D1::ColorF(1, 1, 1) : fgc);
         rt->DrawTextW(t.c_str(), (UINT32)t.size(), tfN, D2D1::RectF(r - w + PAD, 0, r, H), br);
         r -= w;
+    } else if (bar != g_bar) {
+        std::wstring t = ilha::ClockText();
+        float w = ui::TextWidth(tfN, t) + 2 * PAD;
+        D2D1_RECT_F cbx = D2D1::RectF(W / 2 - w / 2, 0, W / 2 + w / 2, H);
+        add(cbx, K_CLOCK, 0);
+        br->SetColor(fgc);
+        rt->DrawTextW(t.c_str(), (UINT32)t.size(), tfN, D2D1::RectF(cbx.left + PAD, 0, cbx.right, H), br);
     }
     // microfone/câmera em uso (issue #8, todos os temas): como no macOS, uma bolinha de 6 pt no vão entre a Central de
     // Controle e a data/hora: laranja = microfone, verde = câmera (a câmera ganha). barra_privacidade=0 tira.
@@ -852,6 +898,17 @@ void Render() {
         if (r - 37 < leftEnd + 60) { g_overflow = true; break; }  // sem espaço: some, como no Mac (macOS 27: aparece a »)
         auto bx = slot(17, K_TRAY, i);
         std::vector<BYTE> mono = IconPixels(t.icon, px);
+        // the program's own colours (barra_icones_cor=1, default): the icon as it is, like most third-party menu
+        // bar icons on the Mac; =0 turns them into one-colour template icons (the code below)
+        if (shell::Setting(L"barra_icones_cor", L"1") == L"1") {
+            if (ID2D1Bitmap* bmp = ui::Bitmap(rt, px, px, mono)) {
+                float cxp = (bx.left + bx.right) / 2 * sc, cyp = H / 2 * sc;
+                float l0 = std::round(cxp - px / 2.f) / sc, t0 = std::round(cyp - px / 2.f) / sc;
+                rt->DrawBitmap(bmp, D2D1::RectF(l0, t0, l0 + px / sc, t0 + px / sc), 1, D2D1_BITMAP_INTERPOLATION_MODE_NEAREST_NEIGHBOR);
+                bmp->Release();
+            }
+            continue;
+        }
         // como os ícones-modelo do Mac: uma cor só, a mesma do texto da barra (branco no escuro, preto no claro);
         // o desenho de dentro (ícone de fundo cheio: Discord, WhatsApp) sai pela transparência, nunca por cinza
         // ou pela cor do original, que deixava o ícone azulado/acinzentado em cima do papel de parede.
@@ -1289,7 +1346,7 @@ void RenderAll() {
 // Redesenha só quando algo visível mudou (antes: a barra inteira a cada segundo)
 void RenderIfChanged() {
     static std::wstring last;
-    std::wstring sig = g_appName + L"|" + ClockText() + L"|" + std::to_wstring(ui::Dark()) + L"|" + std::to_wstring(g_titles.size());
+    std::wstring sig = g_appName + L"|" + ClockText() + L"|" + std::to_wstring(ilha::On()) + L"|" + std::to_wstring(ui::Dark()) + L"|" + std::to_wstring(g_titles.size());
     for (auto& t : g_titles) sig += t;
     wchar_t b[128];
     swprintf_s(b, L"|%d%d%d%d%d%d%d|%d|%d|%p|%d", g_st.wlan, g_st.wifiOn, g_st.batt, g_st.charging, g_st.bt, g_st.sound, g_st.muted,

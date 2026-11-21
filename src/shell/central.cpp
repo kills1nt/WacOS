@@ -19,6 +19,9 @@
 #include <winrt/Windows.Media.Control.h>
 #include <winrt/Windows.Storage.Streams.h>
 #include <atomic>
+#include <map>
+#include <cmath>
+#include <iphlpapi.h>
 #include <mutex>
 #include <thread>
 #include <algorithm>
@@ -388,6 +391,34 @@ DWORD RegDw(const wchar_t* key, const wchar_t* name, DWORD def) {
     return v;
 }
 
+// a physical wired adapter that is connected (the PC on a cable with the Wi-Fi card idle): the Wi-Fi tile says
+// "Ethernet" instead of "Not Connected", which also did not fit in the tile. Checked at most every 5 s.
+bool EthernetUp() {
+    static DWORD last; static bool up;
+    if (last && GetTickCount() - last < 5000) return up;
+    last = GetTickCount() | 1;
+    up = false;
+    // GetIfTable2 needs winsock2 (clashes with the Shell's windows.h, see ilha.cpp): the classic table, virtual
+    // adapters (Hyper-V, VPN, TAP) skipped by their description
+    ULONG sz = 0;
+    GetIfTable(nullptr, &sz, FALSE);
+    std::vector<BYTE> buf(sz ? sz : 1);
+    auto* t = (MIB_IFTABLE*)buf.data();
+    if (sz && GetIfTable(t, &sz, FALSE) == NO_ERROR) {
+        for (DWORD i = 0; i < t->dwNumEntries && !up; i++) {
+            const MIB_IFROW& r = t->table[i];
+            if (r.dwType != IF_TYPE_ETHERNET_CSMACD || r.dwOperStatus != IF_OPER_STATUS_OPERATIONAL) continue;
+            std::string d((const char*)r.bDescr, strnlen((const char*)r.bDescr, r.dwDescrLen));
+            for (auto& ch : d) ch = (char)tolower((unsigned char)ch);
+            if (d.find("virtual") != std::string::npos || d.find("hyper-v") != std::string::npos || d.find("vpn") != std::string::npos ||
+                d.find("tap") != std::string::npos || d.find("loopback") != std::string::npos || d.find("filter") != std::string::npos ||
+                d.find("wan miniport") != std::string::npos || d.find("bluetooth") != std::string::npos) continue;
+            up = true;
+        }
+    }
+    return up;
+}
+
 std::wstring Ssid() {
     HANDLE h = nullptr; DWORD ver = 0;
     if (WlanOpenHandle(2, nullptr, &ver, &h) != ERROR_SUCCESS) return L"";
@@ -656,11 +687,30 @@ void Sym(ID2D1DeviceContext* dc, ID2D1SolidColorBrush* br, const wchar_t* name, 
         if (f) f->Release();
         return;
     }
-    if (simbolo::Draw(dc, name, r, br)) return;
-    float s = std::max(r.right - r.left, r.bottom - r.top) + 6;
+    // the same optical size for every control: a long symbol (two rectangles of Screen Mirroring, the Wi-Fi fan)
+    // filled the whole width and looked bigger than its neighbours; it is scaled down by its aspect ratio
+    if (name) {
+        ID2D1Factory* f = nullptr; dc->GetFactory(&f);
+        simbolo::Sym* sy = f ? simbolo::Load(f, name) : nullptr;
+        if (f) f->Release();
+        if (sy) {
+            D2D1_RECT_F g{}; sy->geo->GetBounds(nullptr, &g);
+            float gw = std::max(g.right - g.left, 1.f), gh = std::max(g.bottom - g.top, 1.f);
+            float k = std::pow(std::min(gw, gh) / std::max(gw, gh), 0.3f);
+            float cx = (r.left + r.right) / 2, cy = (r.top + r.bottom) / 2, hw = (r.right - r.left) / 2 * k, hh = (r.bottom - r.top) / 2 * k;
+            if (simbolo::Draw(dc, name, D2D1::RectF(cx - hw, cy - hh, cx + hw, cy + hh), br)) return;
+        }
+    }
+    // no SVG: the Segoe Fluent glyph at the size of the box (it was always 14, smaller than the SF symbols around it:
+    // AirDrop, Screenshot, Stage Manager)
+    float s = std::max(r.right - r.left, r.bottom - r.top);
     float cx = (r.left + r.right) / 2, cy = (r.top + r.bottom) / 2;
-    wchar_t g = fallback;
-    dc->DrawTextW(&g, 1, g_tfGlyph, D2D1::RectF(cx - s / 2, cy - s / 2, cx + s / 2, cy + s / 2), br);
+    static std::map<int, IDWriteTextFormat*> fmts;
+    int key = (int)std::lround(s * 0.95f);
+    IDWriteTextFormat*& tf = fmts[key];
+    if (!tf) { tf = ui::Format((float)key, DWRITE_FONT_WEIGHT_NORMAL, true, DWRITE_TEXT_ALIGNMENT_CENTER); if (tf) { tf->SetParagraphAlignment(DWRITE_PARAGRAPH_ALIGNMENT_CENTER); tf->SetWordWrapping(DWRITE_WORD_WRAPPING_NO_WRAP); } }
+    wchar_t gl = fallback;
+    dc->DrawTextW(&gl, 1, tf ? tf : g_tfGlyph, D2D1::RectF(cx - s, cy - s, cx + s, cy + s), br);
 }
 
 float PanelR() { return liquid::On() ? 26.f : liquid::Leopard() ? 6.f : RADIUS; }  // Tahoe: painel bem mais redondo; Leopard: o canto do menu
@@ -887,7 +937,7 @@ void Paint() {
     D2D1_RECT_F conn = D2D1::RectF(M, M, M + COL, M + CONN_H);
     Tile(dc, br, p, conn);
     struct Row { HitId btn, text; const wchar_t* sym; wchar_t fb; std::wstring title, sub; bool on; };
-    std::wstring wifiSub = st.radio[0] == 0 ? Tr(L"Desligado") : !st.ssid.empty() ? st.ssid : st.radio[0] == -1 ? Tr(L"Ethernet") : Tr(L"Não conectado");
+    std::wstring wifiSub = st.radio[0] == 0 ? Tr(L"Desligado") : !st.ssid.empty() ? st.ssid : (st.radio[0] == -1 || EthernetUp()) ? Tr(L"Ethernet") : Tr(L"Não conectado");
     std::wstring btSub = st.radio[1] == 1 ? Tr(L"Ativado") : st.radio[1] == 0 ? Tr(L"Desativado") : st.radio[1] == -1 ? Tr(L"Indisponível") : L"…";
     std::wstring airSub = st.airdrop == 2 ? Tr(L"Todos") : st.airdrop == 1 ? Tr(L"Só Meus Dispositivos") : Tr(L"Desativado");
     Row rows[3] = {
@@ -1197,7 +1247,7 @@ void PaintTahoe() {
         Sym(dc, br, sym, fb, D2D1::RectF(c.x - s, c.y - s, c.x + s, c.y + s), on ? onColor : white);
     };
     // os controles pela grade (cc_layout); editando, cada um ganha o "−" e aparecem lugares vazios embaixo
-    std::wstring wifiSub = st.radio[0] == 0 ? Tr(L"Desligado") : !st.ssid.empty() ? st.ssid : st.radio[0] == -1 ? Tr(L"Ethernet") : Tr(L"Não conectado");
+    std::wstring wifiSub = st.radio[0] == 0 ? Tr(L"Desligado") : !st.ssid.empty() ? st.ssid : (st.radio[0] == -1 || EthernetUp()) ? Tr(L"Ethernet") : Tr(L"Não conectado");
     std::wstring btSub = st.radio[1] == 1 ? Tr(L"Ativado") : st.radio[1] == 0 ? Tr(L"Desativado") : st.radio[1] == -1 ? Tr(L"Indisponível") : L"…";
     std::wstring airSub = st.airdrop == 2 ? Tr(L"Todos") : st.airdrop == 1 ? Tr(L"Só Contatos") : Tr(L"Desativado");
     auto capsule = [&](D2D1_RECT_F r, HitId btn, HitId text, const wchar_t* sym, wchar_t fb, const std::wstring& title, const std::wstring& sub, bool on, D2D1_COLOR_F onColor) {

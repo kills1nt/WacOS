@@ -304,6 +304,20 @@ static LRESULT CALLBACK MainProc(HWND h, UINT m, WPARAM w, LPARAM l) {
             ShowContext(h, pt, g_sel, false);
             DestroyWindow(h);
         }
+        if (w == 11) {  // --dock: the Dock's app menu (same items as the Shell), opening upwards over the screen centre
+            KillTimer(h, 11);
+            auto I = [](const wchar_t* l, int id, bool c = false) { ctxmenu::Item i; i.label = l; i.id = id; i.checked = c; return i; };
+            ctxmenu::Item sep; sep.separator = true;
+            ctxmenu::Item opt = I(L"Opções", 0);
+            opt.sub = { I(L"Manter no Dock", 11, true), I(L"Abrir ao Iniciar Sessão", 12), I(L"Mostrar no Finder", 13) };
+            std::vector<ctxmenu::Item> items{ I(L"YouTube", 1, true), sep, I(L"Nova Janela", 2), I(L"Nova Janela Privada", 3), sep, opt, sep,
+                                              I(L"Mostrar Todas as Janelas", 4), I(L"Ocultar", 5), I(L"Encerrar", 6) };
+            SetTimer(h, 10, 8000, nullptr);
+            ctxmenu::PlainNext(); ctxmenu::AboveNext();
+            POINT pt{ GetSystemMetrics(SM_CXSCREEN) / 2, GetSystemMetrics(SM_CYSCREEN) - 140 };
+            ctxmenu::ShowItems(h, pt, items);
+            DestroyWindow(h);
+        }
         if (w == 10) { KillTimer(h, 10); ctxmenu::Close(); }
         return 0;
     case WM_APP + 2: EndRename(w != 0); return 0;
@@ -326,12 +340,15 @@ int WINAPI wWinMain(HINSTANCE hi, HINSTANCE, PWSTR, int show) {
     bool dump = argc >= 3 && !wcscmp(argv[1], L"--dump");
     bool dumpBg = dump && argc >= 4 && !wcscmp(argv[3], L"--bg");
     g_demo = argc >= 3 && !wcscmp(argv[1], L"--demo");
+    bool dockDemo = argc >= 2 && !wcscmp(argv[1], L"--dock");
+    if (dockDemo) g_demo = true;
     ctxmenu::Options opt;
     opt.demo = g_demo;
     if (g_demo) opt.fadeMs = 1500;  // fade lento para dar tempo de capturar a tela
     ctxmenu::Init(hi, g_log, opt);
     std::wstring start;
-    if (dump || g_demo) start = argv[2];
+    if (dockDemo) start = L"C:\\";
+    else if (dump || g_demo) start = argv[2];
     else if (argc >= 2) start = argv[1];
     else { PWSTR p; if (SUCCEEDED(SHGetKnownFolderPath(FOLDERID_Desktop, 0, nullptr, &p))) { start = p; CoTaskMemFree(p); } }
 
@@ -360,9 +377,10 @@ int WINAPI wWinMain(HINSTANCE hi, HINSTANCE, PWSTR, int show) {
     }
 
     LoadFolder(start);
-    ShowWindow(g_main, show);
+    ShowWindow(g_main, dockDemo ? SW_SHOWMINNOACTIVE : show);
     UpdateWindow(g_main);
-    if (g_demo) {
+    if (dockDemo) { SetTimer(g_main, 11, 300, nullptr); }
+    else if (g_demo) {
         SetForegroundWindow(g_main);
         // --quente: pré-carrega as extensões como o Finder faz ao abrir, para medir o menu "de verdade"
         for (int a = 3; a < argc; a++)
