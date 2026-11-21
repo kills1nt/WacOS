@@ -31,9 +31,9 @@ if (-not (Test-Path (Join-Path $src '..\bin\WacOSShell.exe')) -and -not (Test-Pa
     Write-Host "Esta pasta é o código-fonte do WacOS, sem os programas compilados." -ForegroundColor Yellow
     Write-Host "This folder is the WacOS source code, without the compiled programs." -ForegroundColor Yellow
     Write-Host "`nBaixe o WacOS.zip pronto em / Download the ready-made WacOS.zip from:"
-    Write-Host "  https://github.com/renzyxx/WacOS/releases/latest"
+    Write-Host "  https://github.com/kills1nt/WacOS/releases/latest"
     Write-Host "`nExtraia e rode o instalar.cmd de dentro dele. / Extract it and run instalar.cmd from inside it."
-    Start-Process 'https://github.com/renzyxx/WacOS/releases/latest' -ErrorAction SilentlyContinue
+    Start-Process 'https://github.com/kills1nt/WacOS/releases/latest' -ErrorAction SilentlyContinue
     Sair
 }
 if ($Atualizar -and -not (Test-Path (Join-Path $dest 'bin\WacOSShell.exe')) -and -not $temVelho) {

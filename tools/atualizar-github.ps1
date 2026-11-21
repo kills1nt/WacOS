@@ -8,7 +8,7 @@
 # Private repository: the GitHub token goes in %APPDATA%\Shell\github-token.txt (read-only is enough).
 param([switch]$Verificar, [string]$Saida = '', [string]$Bin = '')
 $ErrorActionPreference = 'Stop'
-$repo = 'renzyxx/WacOS'
+$repo = 'kills1nt/WacOS'
 if (-not $Bin) { $Bin = Join-Path $env:LOCALAPPDATA 'Programs\WacOS\bin' }
 $out = New-Object System.Collections.Generic.List[string]
 

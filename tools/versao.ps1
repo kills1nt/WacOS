@@ -7,7 +7,7 @@ $root = Split-Path $PSScriptRoot -Parent
 $f = Join-Path $root 'bin\versao.txt'
 $tag = ''
 if (Get-Command gh) {
-    $tags = @(gh release list -R renzyxx/WacOS --limit 100 --json tagName --jq '.[].tagName' 2>$null)
+    $tags = @(gh release list -R kills1nt/WacOS --limit 100 --json tagName --jq '.[].tagName' 2>$null)
     $n = @($tags | Where-Object { $_ -match '^build-(\d+)$' } | ForEach-Object { [int]($_ -replace '^build-', '') } | Measure-Object -Maximum).Maximum
     if ($n) { $tag = "build-$n" }
 }

@@ -90,7 +90,7 @@ BEGIN
     BLOCK "040904B0"
     BEGIN
       VALUE "CompanyName", "WacOS (open source)"
-      VALUE "Comments", "https://github.com/renzyxx/WacOS"
+      VALUE "Comments", "https://github.com/kills1nt/WacOS"
       VALUE "LegalCopyright", "WacOS contributors"
       VALUE "FileDescription", "$desc"
       VALUE "FileVersion", "1.0.0.0"

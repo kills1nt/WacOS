@@ -10,7 +10,7 @@ param([string]$Notas = '')
 $ErrorActionPreference = 'Stop'
 $root = Split-Path $PSScriptRoot -Parent
 Set-Location $root
-$repo = 'renzyxx/WacOS'
+$repo = 'kills1nt/WacOS'
 $log = Join-Path $root 'dist\publicar.log'
 function L($s) { $s | Tee-Object -FilePath $log -Append | Write-Host }
 New-Item -ItemType Directory -Force (Join-Path $root 'dist') | Out-Null

@@ -398,7 +398,7 @@ static void RegisterUninstall() {
     RegSetStr(HKEY_CURRENT_USER, UNINST_KEY, L"Publisher", L"WacOS (open source)");
     RegSetStr(HKEY_CURRENT_USER, UNINST_KEY, L"DisplayIcon", setup + L",0");
     RegSetStr(HKEY_CURRENT_USER, UNINST_KEY, L"InstallLocation", g_dest);
-    RegSetStr(HKEY_CURRENT_USER, UNINST_KEY, L"URLInfoAbout", L"https://github.com/renzyxx/WacOS");
+    RegSetStr(HKEY_CURRENT_USER, UNINST_KEY, L"URLInfoAbout", L"https://github.com/kills1nt/WacOS");
     RegSetStr(HKEY_CURRENT_USER, UNINST_KEY, L"UninstallString", L"\"" + setup + L"\" --desinstalar");
     RegSetStr(HKEY_CURRENT_USER, UNINST_KEY, L"ModifyPath", L"\"" + setup + L"\"");
     RegSetDword(HKEY_CURRENT_USER, UNINST_KEY, L"NoRepair", 1);
@@ -707,14 +707,14 @@ static wstring JsonStr(const std::string& j, const std::string& key, size_t from
 // login, e operadoras que dividem um IP entre muitos clientes (CGNAT) estouram isso. A página pública da release
 // tem o mesmo: /releases/latest leva à tag, e /releases/expanded_assets/<tag> lista o .zip com o SHA-256.
 static bool CheckGitHubPagina() {
-    std::string pg = HttpGet(L"github.com", L"/renzyxx/WacOS/releases/latest", L"text/html");
-    const std::string ea = "/renzyxx/WacOS/releases/expanded_assets/";
+    std::string pg = HttpGet(L"github.com", L"/kills1nt/WacOS/releases/latest", L"text/html");
+    const std::string ea = "/kills1nt/WacOS/releases/expanded_assets/";
     size_t p = pg.find(ea); if (p == std::string::npos) return false;
     p += ea.size();
     size_t e = pg.find_first_of("\"'?#", p); if (e == std::string::npos) return false;
     std::string tag = pg.substr(p, e - p);
     std::string as = HttpGet(L"github.com", FromUtf8(ea + tag), L"text/html");
-    const std::string dl = "/renzyxx/WacOS/releases/download/" + tag + "/";
+    const std::string dl = "/kills1nt/WacOS/releases/download/" + tag + "/";
     for (size_t q = as.find(dl); q != std::string::npos; q = as.find(dl, q + 1)) {
         size_t qe = as.find('"', q); if (qe == std::string::npos) break;
         std::string href = as.substr(q, qe - q);
@@ -730,7 +730,7 @@ static bool CheckGitHubPagina() {
 }
 static void CheckGitHub() {
     g_rel = {}; g_relErr.clear();
-    std::string j = HttpGet(L"api.github.com", L"/repos/renzyxx/WacOS/releases/latest", L"application/vnd.github+json");
+    std::string j = HttpGet(L"api.github.com", L"/repos/kills1nt/WacOS/releases/latest", L"application/vnd.github+json");
     if (j.empty()) {
         DWORD api = g_httpCode;
         if (CheckGitHubPagina()) return;
@@ -1171,7 +1171,7 @@ static void Next() {
         }
         PostMessageW(g_wnd, WM_CLOSE, 0, 0);
         return;
-    case P_ERROR: ShellExecuteW(nullptr, L"open", L"https://github.com/renzyxx/WacOS/releases/latest", nullptr, nullptr, SW_SHOWNORMAL); PostMessageW(g_wnd, WM_CLOSE, 0, 0); return;
+    case P_ERROR: ShellExecuteW(nullptr, L"open", L"https://github.com/kills1nt/WacOS/releases/latest", nullptr, nullptr, SW_SHOWNORMAL); PostMessageW(g_wnd, WM_CLOSE, 0, 0); return;
     default: break;
     }
     InvalidateRect(g_wnd, nullptr, FALSE);
