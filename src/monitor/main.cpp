@@ -39,6 +39,7 @@
 #include <shellscalingapi.h>
 #include "../menu/context_menu.h"
 #include "../comum/ampliacao.h"  // botão verde com a animação do ampliar do Shell
+#include "../comum/vsync.h"  // animation timers in step with the display (144/165 Hz)
 #include "../comum/idioma.h"
 #include "../comum/pressao.h"  // pressão de memória como a do Mac (a mesma conta do Shell)
 #include "../comum/semaforo.h"
@@ -942,7 +943,7 @@ void DrawToolbar(ID2D1RenderTarget* rt, ID2D1SolidColorBrush* br, const Pal& pal
             br->SetColor(pal.segSel);
             rt->FillRoundedRectangle(D2D1::RoundedRect(D2D1::RectF(l + 4, r.top + 4, l + w - 4, r.bottom - 4), (PILL_H - 8) / 2, (PILL_H - 8) / 2), br);
             vidro::Borda(rt, D2D1::RectF(l + 4, r.top + 4, l + w - 4, r.bottom - 4), (PILL_H - 8) / 2, 1, g_dark, 0.6f, true);
-            if (g_segFrom >= 0) SetTimer(g_hwnd, T_SEG, 8, nullptr);
+            if (g_segFrom >= 0) vsync::Set(g_hwnd, T_SEG, 8);
         } else if (g_tahoe) {
         } else if (i + 1 < T_COUNT && i + 1 != g_tab) {
             br->SetColor(g_dark ? D2D1::ColorF(1, 1, 1, 0.14f) : D2D1::ColorF(0, 0, 0, 0.12f));
@@ -1316,7 +1317,7 @@ void SetTab(int i) {
     g_segFrom = g_tahoe ? SegPos() : -1;
     g_segAt = GetTickCount();
     g_tab = i; BuildRows(); g_scroll = 0;
-    if (g_tahoe) SetTimer(g_hwnd, T_SEG, 8, nullptr);
+    if (g_tahoe) vsync::Set(g_hwnd, T_SEG, 8);
     Invalidate();
 }
 
@@ -1462,7 +1463,7 @@ LRESULT CALLBACK WndProc(HWND h, UINT m, WPARAM w, LPARAM l) {
     case WM_TIMER:
         if (w == T_SAMPLE) { SetTimer(h, T_SAMPLE, SAMPLE_MS, nullptr); Sample(); BuildRows(); Invalidate(); }
         else if (w == 2 && g_searchFocus) Invalidate();  // cursor da busca piscando
-        else if (w == T_SEG) { if (g_segFrom < 0) KillTimer(h, T_SEG); Invalidate(); }  // a gota do segmentado deslizando
+        else if (w == T_SEG) { if (g_segFrom < 0) vsync::Kill(h, T_SEG); Invalidate(); }  // a gota do segmentado deslizando
         else if (w == 3 && tahoe::Reload()) { g_tahoe = tahoe::On(); ApplyTheme(); shadow::Update(); Invalidate(); }  // tema trocado no Ajustes: muda na hora
         return 0;
     case WM_MOUSEWHEEL:

@@ -874,6 +874,7 @@ struct LabelBox { D2D1_RECT_F r{}; D2D1_POINT_2F tri[3]{}; D2D1_POINT_2F in{}; s
 bool LabelGeom(int lab, LabelBox& L) {
     if (!g_rotulos || lab < 0 || lab >= (int)g_items.size() || g_items[lab].kind == I_SEP || g_reveal <= 0.9f) return false;
     auto& it = g_items[lab];
+    if (it.kind == I_APP && previa::Showing(apps::list[it.app].id)) return false;  // a prévia já mostra os títulos
     L.t = Label(it);
     float tw = ui::TextWidth(g_tfLabel, L.t) + 22, th = 26;
     float baseline = g_bg.top + PAD_TOP + g_tile;
@@ -1467,6 +1468,13 @@ RECT IconSlotRect(const Item& it) {
     return ToScreenRect({ it.cx - s / 2, top, it.cx + s / 2, top + s });
 }
 
+// prévia das janelas (previa.cpp): o ponteiro parado sobre um app aberto
+void PreviewHover(int hv) {
+    if (hv >= 0 && hv < (int)g_items.size() && g_items[hv].kind == I_APP && !g_dragging && g_press < 0)
+        previa::Hover(apps::list[g_items[hv].app].id, IconSlotRect(g_items[hv]), Pos());
+    else previa::Leave();
+}
+
 void LeftClick(int i) {
     auto& it = g_items[i];
     if (it.kind == I_MINWIN) {  // volta para a tela pelo funil (gênio ao contrário) e sai do Dock
@@ -1633,6 +1641,7 @@ LRESULT CALLBACK IconsProc(HWND h, UINT m, WPARAM w, LPARAM l) {
             POINT c; GetCursorPos(&c);
             if (std::abs(c.x - g_pressPt.x) + std::abs(c.y - g_pressPt.y) > 6 * sc && g_items[g_press].kind == I_APP && !apps::list[g_items[g_press].app].finder) {
                 g_dragging = true;
+                previa::Hide();
                 ui::FrameClock(g_icons, WM_DOCKFRAME, true);
             }
         }
@@ -1647,18 +1656,22 @@ LRESULT CALLBACK IconsProc(HWND h, UINT m, WPARAM w, LPARAM l) {
         float head = g_magnify ? g_large - g_tile : 0;
         if (y < g_bg.top - head || x < g_bg.left - g_tile || x > g_bg.right + g_tile) {
             if (g_mouseX >= 0 || g_hover >= 0) { g_mouseX = -1; g_hover = -1; if (Animating()) ui::FrameClock(g_icons, WM_DOCKFRAME, true); Paint(); }
+            previa::Leave();
             return 0;
         }
         g_mouseX = g_lastMouseX = x;
         if (Animating()) ui::FrameClock(g_icons, WM_DOCKFRAME, true);
         int hv = HitTest(x, y);
         if (hv != g_hover || g_magnify) { g_hover = hv; Paint(); }
+        PreviewHover(hv);
         return 0;
     }
     case WM_MOUSELEAVE:
         if (!g_dragging) { g_mouseX = -1; g_hover = -1; if (Animating()) ui::FrameClock(g_icons, WM_DOCKFRAME, true); Paint(); }
+        previa::Leave();
         return 0;
     case WM_LBUTTONDOWN: {
+        previa::Hide();
         D2D1_POINT_2F lp = ToLocal(GET_X_LPARAM(l) / sc, GET_Y_LPARAM(l) / sc);
         if (HitSep(lp.x, lp.y)) {
             POINT c; GetCursorPos(&c);
@@ -1712,6 +1725,7 @@ LRESULT CALLBACK IconsProc(HWND h, UINT m, WPARAM w, LPARAM l) {
         return 0;
     }
     case WM_MBUTTONUP: {  // botão do meio: uma janela nova do app (como na barra do Windows)
+        previa::Hide();
         D2D1_POINT_2F lp = ToLocal(GET_X_LPARAM(l) / sc, GET_Y_LPARAM(l) / sc);
         int i = HitTest(lp.x, lp.y);
         if (i < 0) return 0;
@@ -1731,6 +1745,7 @@ LRESULT CALLBACK IconsProc(HWND h, UINT m, WPARAM w, LPARAM l) {
         return 0;
     }
     case WM_RBUTTONUP: {
+        previa::Hide();
         D2D1_POINT_2F lp = ToLocal(GET_X_LPARAM(l) / sc, GET_Y_LPARAM(l) / sc);
         int i = HitTest(lp.x, lp.y);
         g_hover = -1;

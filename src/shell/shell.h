@@ -11,6 +11,7 @@
 #include <vector>
 #include <functional>
 #include "../comum/idioma.h"
+#include "../comum/vsync.h"  // animation timers in step with the display (144/165 Hz)
 #include <cstdio>
 
 struct IDXGISwapChain1;
@@ -436,6 +437,19 @@ void SetWidgets(std::vector<Widget> list, std::function<void()> onEdit);  // onE
 struct Brief { std::wstring aumid, app; long long time; };  // notificação do Windows (só o necessário para o badge)
 std::vector<Brief> Recentes();  // as notificações da Central agora (qualquer thread)
 }
+namespace previa {  // previa.cpp: prévia das janelas de um app ao parar o ponteiro sobre o ícone no Dock (dock_previa=1)
+void Hover(const std::wstring& appId, RECT iconScreen, int side);  // ponteiro sobre o ícone (side: 0 embaixo, 1 esq., 2 dir.)
+void Leave();                                // saiu do ícone (o painel fica se o ponteiro for para ele)
+void Hide();                                 // clique, arrasto, menu: some já
+bool Showing(const std::wstring& appId);
+}
+
+namespace winultra {  // WinUltra (winultra.cpp; src\winultra): a ilha de vidro, processo à parte; ajuste winultra=1
+void Start();   // abre bin\WinUltra.exe --wacos (se ligado e ainda não aberto)
+void Stop();    // fecha o que o Shell abriu
+void Reload();  // ajustes mudaram: abre ou fecha
+}
+
 namespace ilha {  // Ilha Dinâmica (ilha.cpp): notch/pílula preta no topo (música, timer, avisos, Estante...); ajuste ilha=1, ilha_estilo
 bool Create(HINSTANCE hi);
 void Reload();                  // ajustes mudaram (ilha, ilha_estilo, ilha_notificacoes, ilha_volume, ilha_passar)

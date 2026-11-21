@@ -77,7 +77,7 @@ if ($barrasAbertas) {
 }
 $apps = 'WacOSFinder','WacOSSettings','WacOSActivityMonitor','WacOSTerminal','WacOSCalculator','WacOSNotes','WacOSScreenshot','WacOSWindow32Host',
         'WacOSPreview','WacOSReminders','WacOSCalendar','WacOSTextEdit','WacOSClock','WacOSWeather','WacOSContacts','WacOSPhotos',
-        'WacOSTimeMachine','WacOSMusic','WacOSQuickTime','WacOSForceQuit','WacOSTitleBars',
+        'WacOSTimeMachine','WacOSMusic','WacOSQuickTime','WacOSForceQuit','WacOSTitleBars','WinUltra',
         'SequoiaFinder','SequoiaSettings','SequoiaActivityMonitor','SequoiaTerminal','SequoiaCalculator','SequoiaNotes','SequoiaScreenshot','SequoiaWindow32Host'
 $abertos = Get-Process $apps -ErrorAction SilentlyContinue
 if ($abertos) {

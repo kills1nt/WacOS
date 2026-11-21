@@ -162,7 +162,7 @@ LRESULT CALLBACK Proc(HWND h, UINT m, WPARAM w, LPARAM l) {
                     if ((int)(now - an.fadeAt) >= 0) { Fade(an); any = true; } else more = true;
                 }
             if (any) ui::Comp()->Commit();
-            if (!more) KillTimer(h, T_FADE);
+            if (!more) vsync::Kill(h, T_FADE);
             return 0;
         }
         if (w == T_CLEAN) {
@@ -445,7 +445,7 @@ void ampliar::Shown(HWND h) {
         an.fadeAt = GetTickCount() + (an.b.clip || an.a.clip ? 60 : 150);
         an.retakeAt = 0;
     }
-    SetTimer(g_wnd, T_FADE, 15, nullptr);
+    vsync::Set(g_wnd, T_FADE, 15);
 }
 
 // Fechar como no Mac: a foto da janela (tirada agora, ela ainda na tela) encolhe uns 5% e some (~0,18 s)

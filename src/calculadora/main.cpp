@@ -29,6 +29,7 @@
 #include "../menu/context_menu.h"
 #include "../comum/ampliacao.h"
 #include "../comum/idioma.h"
+#include "../comum/vsync.h"  // animation timers in step with the display (144/165 Hz)
 #include "../comum/semaforo.h"
 #include "../comum/leopard.h"  // tema Mac OS X Leopard: o metal da janela
 
@@ -1645,7 +1646,7 @@ void Flash(int id) {  // tecla apertada pelo teclado: acende e apaga
     g_glow[id] = 1;
     g_held[id] = false;
     g_lastAnim = GetTickCount();
-    SetTimer(g_hwnd, 1, 16, nullptr);
+    vsync::Set(g_hwnd, 1, 16);
 }
 
 void PressKey(int id) {
@@ -1844,7 +1845,7 @@ void Tick() {
         if (it->second <= 0) { g_held.erase(it->first); it = g_glow.erase(it); continue; }
         any = true; ++it;
     }
-    if (!any) KillTimer(g_hwnd, 1);
+    if (!any) vsync::Kill(g_hwnd, 1);
     Invalidate();
 }
 
@@ -1948,7 +1949,7 @@ LRESULT CALLBACK WndProc(HWND h, UINT m, WPARAM w, LPARAM l) {
             int id = g_keys[g_down.idx].id;
             g_held[id] = false;
             g_lastAnim = GetTickCount();
-            SetTimer(h, 1, 16, nullptr);
+            vsync::Set(h, 1, 16);
             float sc = Scale(); D2D1_POINT_2F p{ GET_X_LPARAM(l) / sc, GET_Y_LPARAM(l) / sc };
             if (HitTarget(p) == g_down) PressKey(id);
         }

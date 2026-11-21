@@ -199,6 +199,38 @@ bool apps::LoneOwned(HWND h) {
     return true;
 }
 
+// Launchers and overlays that are never "apps" (Dock, Alt+Tab, Mission Control), even with WS_EX_APPWINDOW:
+// Raycast's search window is APPWINDOW + TOOLWINDOW + NOACTIVATE and showed up in the Dock while open.
+// Setting apps_ocultos = exe names separated by ';' (default: raycast.exe). Cached per process for 30 s.
+static bool HiddenProcess(HWND h) {
+    DWORD pid = 0; GetWindowThreadProcessId(h, &pid);
+    if (!pid) return false;
+    struct E { bool hidden; DWORD at; };
+    thread_local std::map<DWORD, E> cache;
+    thread_local std::wstring lastList;
+    std::wstring list = Lower(shell::Setting(L"apps_ocultos", L"raycast.exe"));
+    if (list != lastList) { cache.clear(); lastList = list; }
+    DWORD now = GetTickCount();
+    if (auto it = cache.find(pid); it != cache.end() && now - it->second.at < 30000) return it->second.hidden;
+    if (cache.size() > 256) cache.clear();
+    bool hidden = false;
+    if (!list.empty()) {
+        std::wstring exe = Lower(ExeOfProcess(pid));
+        size_t slash = exe.find_last_of(L"\\/");
+        std::wstring name = slash == std::wstring::npos ? exe : exe.substr(slash + 1);
+        for (size_t a = 0; !name.empty() && a <= list.size();) {
+            size_t b = list.find(L';', a); if (b == std::wstring::npos) b = list.size();
+            std::wstring item = list.substr(a, b - a);
+            while (!item.empty() && item.front() == L' ') item.erase(0, 1);
+            while (!item.empty() && item.back() == L' ') item.pop_back();
+            if (!item.empty() && item == name) { hidden = true; break; }
+            a = b + 1;
+        }
+    }
+    cache[pid] = { hidden, now };
+    return hidden;
+}
+
 // Janela que o Windows mostraria na barra de tarefas (as mesmas regras do Alt+Tab).
 static bool IsTaskbarWindow(HWND h) {
     if (!IsWindowVisible(h) || apps::IsShellWindow(h)) return false;
@@ -206,6 +238,9 @@ static bool IsTaskbarWindow(HWND h) {
     // e trocar para ele não fazia nada)
     if (shell::Nossa(h)) return false;
     LONG_PTR ex = GetWindowLongPtrW(h, GWL_EXSTYLE);
+    // a palette/launcher window (APPWINDOW but also TOOLWINDOW + NOACTIVATE) or an excluded program: not an app
+    if ((ex & WS_EX_APPWINDOW) && (ex & WS_EX_TOOLWINDOW) && (ex & WS_EX_NOACTIVATE)) return false;
+    if (HiddenProcess(h)) return false;
     HWND owner = GetWindow(h, GW_OWNER);
     bool lone = false;
     if (ex & WS_EX_APPWINDOW) {}

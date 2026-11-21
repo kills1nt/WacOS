@@ -276,7 +276,7 @@ static std::vector<AppInfo> g_apps = {
 static const wchar_t* OUR_PROCS[] = { L"WacOSFinder.exe", L"WacOSSettings.exe", L"WacOSActivityMonitor.exe", L"WacOSTerminal.exe", L"WacOSCalculator.exe",
     L"WacOSNotes.exe", L"WacOSScreenshot.exe", L"WacOSWindow32Host.exe", L"WacOSPreview.exe", L"WacOSReminders.exe", L"WacOSCalendar.exe",
     L"WacOSTextEdit.exe", L"WacOSClock.exe", L"WacOSWeather.exe", L"WacOSContacts.exe", L"WacOSPhotos.exe", L"WacOSTimeMachine.exe",
-    L"WacOSMusic.exe", L"WacOSQuickTime.exe", L"WacOSForceQuit.exe" };
+    L"WacOSMusic.exe", L"WacOSQuickTime.exe", L"WacOSForceQuit.exe", L"WinUltra.exe" };
 
 enum Mode { M_FULL, M_APPS, M_BARS, M_APPSBARS };
 static const wchar_t* MODE_ID[] = { L"completo", L"apps", L"barras", L"apps+barras" };

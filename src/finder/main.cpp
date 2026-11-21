@@ -38,6 +38,7 @@
 #undef KIND_IMAGE
 #include "../menu/context_menu.h"
 #include "../comum/ampliacao.h"  // botão verde com a animação do ampliar do Shell
+#include "../comum/vsync.h"  // animation timers in step with the display (144/165 Hz)
 #include "../comum/idioma.h"
 #include "../comum/vidro.h"
 #include "pastacor.h"  // Personalizar Pasta: cor e símbolo
@@ -3828,7 +3829,7 @@ static void QlClose() {  // volta para o ícone; o timer 6 desenha e no fim some
     if (!g_ql || g_qlClosing) return;
     g_qlClosing = true;
     g_qlClosedAt = GetTickCount();
-    SetTimer(g_hwnd, 6, 15, nullptr);
+    vsync::Set(g_hwnd, 6, 15);
     Invalidate();
 }
 
@@ -3878,7 +3879,7 @@ static void QlToggle() {
         if (g_qlFrom.bottom < c.top || g_qlFrom.top > c.bottom || g_qlFrom.right - g_qlFrom.left < 4) g_qlFrom = {};
     }
     g_qlOpenedAt = GetTickCount();
-    SetTimer(g_hwnd, 6, 15, nullptr);  // anima a abertura
+    vsync::Set(g_hwnd, 6, 15);  // anima a abertura
     Invalidate();
 }
 
@@ -6741,7 +6742,7 @@ static LRESULT CALLBACK WndProc(HWND h, UINT m, WPARAM w, LPARAM l) {
         }
         case T_CARET: g_caretOn = !g_caretOn; Invalidate(); break;
         case 6:  // animação do Quick Look
-            if (!g_ql || (!g_qlClosing && GetTickCount() - g_qlOpenedAt > QL_ANIM_MS + 20)) KillTimer(h, 6);
+            if (!g_ql || (!g_qlClosing && GetTickCount() - g_qlOpenedAt > QL_ANIM_MS + 20)) vsync::Kill(h, 6);
             Render();
             break;
         }

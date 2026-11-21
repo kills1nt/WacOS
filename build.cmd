@@ -18,6 +18,7 @@ rem   build.cmd janelas   barra de titulo do Mac nos outros programas (WacOSWind
 rem   build.cmd setup     so o WacOSSetup.exe (instalar, atualizar e desinstalar)
 rem   build.cmd titulos   so o WacOSTitleBars.exe (as barras de titulo sem o Shell)
 rem   build.cmd bandeja   so o prototipo da bandeja (BandejaTeste.exe)
+rem   build.cmd winultra  so o WinUltra.exe (ilha de vidro, C# WPF, src\winultra; compilador do .NET Framework do Windows)
 setlocal
 set "VSDIR=%ProgramFiles(x86)%\Microsoft Visual Studio\2022\BuildTools"
 rem sem o Build Tools (ex.: a maquina do GitHub Actions, com o Visual Studio completo): o vswhere acha o que tiver C++
@@ -67,6 +68,11 @@ if /i "%1"=="setup" (
 
 if /i "%1"=="titulos" (
   call :titulos || exit /b 1
+  exit /b 0
+)
+
+if /i "%1"=="winultra" (
+  call :winultra || exit /b 1
   exit /b 0
 )
 
@@ -153,6 +159,7 @@ cl %CFLAGS% /Fo:bin\obj\forcar\ src\forcar\main.cpp %RES%\WacOSForceQuit.res /Fe
 if /i "%1"=="apps" exit /b 0
 
 :shell
+if /i not "%1"=="shell" call :winultra || exit /b 1
 rem /Zi + /DEBUG: simbolos em bin\obj\WacOSShell.pdb (perfil de CPU e falhas); /OPT:REF,ICF mantem o exe enxuto
 cl %CFLAGS% /Zi /Fd:bin\obj\shell.pdb src\shell\*.cpp bin\obj\context_menu.obj %RES%\WacOSShell.res /Fe:bin\WacOSShell.exe %LFLAGS% version.lib wlanapi.lib powrprof.lib propsys.lib windowscodecs.lib d3d11.lib dxgi.lib dcomp.lib dxguid.lib /DEBUG /OPT:REF /OPT:ICF /PDB:bin\obj\WacOSShell.pdb || exit /b 1
 call :setup || exit /b 1
@@ -162,6 +169,22 @@ rem so as barras de titulo, sem o Shell: src\titulos + o janelas.cpp do Shell (o
 :titulos
 if not exist bin\obj\titulos mkdir bin\obj\titulos
 cl %CFLAGS% /Fo:bin\obj\titulos\ src\titulos\main.cpp src\shell\janelas.cpp %RES%\WacOSTitleBars.res /Fe:bin\WacOSTitleBars.exe %LFLAGS% || exit /b 1
+exit /b 0
+
+rem WinUltra (github.com/Gxmi2006/WinUltra, MIT): a ilha de vidro que o Shell abre (src\shell\winultra.cpp).
+rem csc.exe do .NET Framework 4 (vem no Windows 11) + Windows.winmd do Windows SDK para as APIs WinRT
+:winultra
+set "FW=%WINDIR%\Microsoft.NET\Framework64\v4.0.30319"
+set "WINMD="
+for /d %%v in ("%ProgramFiles(x86)%\Windows Kits\10\UnionMetadata\10.*") do if exist "%%v\Windows.winmd" set "WINMD=%%v\Windows.winmd"
+if not defined WINMD (echo WinUltra: Windows.winmd do Windows SDK nao encontrado & exit /b 1)
+"%FW%\csc.exe" /nologo /optimize+ /target:winexe /platform:x64 /define:FRIENDS /out:bin\WinUltra.exe /win32icon:src\winultra\WinUltra.ico /win32manifest:src\winultra\WinUltra.manifest ^
+ /r:"%FW%\WPF\PresentationFramework.dll" /r:"%FW%\WPF\PresentationCore.dll" /r:"%FW%\WPF\WindowsBase.dll" /r:"%FW%\System.Xaml.dll" ^
+ /r:"%FW%\System.Windows.Forms.dll" /r:"%FW%\System.Drawing.dll" ^
+ /r:"%FW%\System.Management.dll" /r:"%FW%\System.Web.Extensions.dll" /r:"%FW%\System.IO.Compression.dll" /r:"%FW%\System.IO.Compression.FileSystem.dll" ^
+ /r:"%FW%\System.Runtime.dll" /r:"%FW%\System.Runtime.WindowsRuntime.dll" /r:"%FW%\System.Runtime.InteropServices.WindowsRuntime.dll" ^
+ /r:"%WINMD%" /resource:src\winultra\WinUltra.ico,WinUltra.ico ^
+ src\winultra\WinUltra.cs src\winultra\Island.cs src\winultra\Setup.cs || exit /b 1
 exit /b 0
 
 rem o instalador unico (instalar, atualizar, desinstalar): src\setup

@@ -3,6 +3,7 @@
 #include "ajustes.h"
 #include "../menu/context_menu.h"
 #include "../comum/simbolos.h"
+#include "../comum/vsync.h"  // animation timers in step with the display (144/165 Hz)
 #include "../comum/vidro.h"
 #include <dwmapi.h>
 #include <windowsx.h>
@@ -1779,7 +1780,7 @@ void Render() {
     if (winClip) { dc->PopLayer(); tahoe::WindowRim(dc, br, s, winR, g_dark); }
     br->Release();
     gfx::End();
-    if (!g_toggleAnim.empty()) SetTimer(g_hwnd, T_ANIM, 15, nullptr);
+    if (!g_toggleAnim.empty()) vsync::Set(g_hwnd, T_ANIM, 15);
 }
 
 const Hit* HitAt(D2D1_POINT_2F p) {
@@ -2055,7 +2056,7 @@ LRESULT CALLBACK WndProc(HWND h, UINT m, WPARAM w, LPARAM l) {
         else {
             g_scrollTarget = std::clamp(g_scrollTarget + d, 0.f, MaxScroll());
             if (!g_rol.on) { g_rol = {}; g_rol.on = true; QueryPerformanceCounter(&g_rol.ini); g_rol.ult = g_rol.ini; }
-            SetTimer(h, T_ANIM, 4, nullptr);
+            vsync::Set(h, T_ANIM, 4);
         }
         Invalidate();
         return 0;
@@ -2090,7 +2091,7 @@ LRESULT CALLBACK WndProc(HWND h, UINT m, WPARAM w, LPARAM l) {
                     tot > 0 ? g_rol.n * 1000.0 / tot : 0.0, g_rol.n ? g_rol.soma / g_rol.n : 0.0, g_rol.pior);
                 g_rol.on = false;
             }
-            if (g_scroll == g_scrollTarget && g_toggleAnim.empty()) KillTimer(h, T_ANIM);
+            if (g_scroll == g_scrollTarget && g_toggleAnim.empty()) vsync::Kill(h, T_ANIM);
             Invalidate();
         } else if (w == T_CARET) {
             if (!g_searchFocus && !g_sheet.open) KillTimer(h, T_CARET);

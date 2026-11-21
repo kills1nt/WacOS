@@ -155,7 +155,7 @@ void AnimStep() {
     else { g_qlOp = e; g_qlSc = 0.94f + 0.06f * e; }
     ApplyFade();
     if (t >= 1) {
-        KillTimer(g_wnd, T_QLANIM);
+        vsync::Kill(g_wnd, T_QLANIM);
         g_qlAnimT0 = -1;
         if (g_qlAnimOut) { g_qlAnimOut = false; g_qlOp = g_qlSc = 1; CloseNow(); }
         else { g_qlOp = g_qlSc = 1; ApplyFade(); }
@@ -164,7 +164,7 @@ void AnimStep() {
 void AnimStart(bool out) {
     g_qlAnimOut = out;
     g_qlAnimT0 = anim::Now();
-    SetTimer(g_wnd, T_QLANIM, 8, nullptr);
+    vsync::Set(g_wnd, T_QLANIM, 8);
 }
 
 // Por cima do Finder (como o painel do Mac): fica "sempre visível" enquanto a janela da frente é do Finder ou do
@@ -1322,7 +1322,7 @@ std::wstring quicklook::Path() { return IsOpen() ? g_path : L""; }
 namespace {
 void CloseNow() {
     if (!g_wnd) return;
-    KillTimer(g_wnd, T_QLANIM); g_qlAnimT0 = -1; g_qlAnimOut = false; g_qlOp = g_qlSc = 1;
+    vsync::Kill(g_wnd, T_QLANIM); g_qlAnimT0 = -1; g_qlAnimOut = false; g_qlOp = g_qlSc = 1;
     MediaStop();
     HandlerStop();
     ZoomReset();

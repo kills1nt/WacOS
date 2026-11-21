@@ -830,7 +830,11 @@ void PaintLayered(Mon& m) {
         }
     }
     POINT pos{ m.r.left, m.r.top }, zero{ 0, 0 };
-    SIZE size{ W, H };
+    // one pixel short of the monitor: a window that covers the whole monitor and has the focus counts as a
+    // full-screen app for Windows (QUNS_BUSY) and for Wallpaper Engine/Lively, which then pause the animated
+    // wallpaper on that monitor (the one with the Dock, where the desktop gets the focus). Transparent here, so
+    // the missing row shows the same wallpaper underneath.
+    SIZE size{ W, H - 1 };
     BLENDFUNCTION bf{ AC_SRC_OVER, 0, 255, AC_SRC_ALPHA };
     UpdateLayeredWindow(m.h, nullptr, &pos, &size, m.bufDC, &zero, 0, &bf, ULW_ALPHA);
 }
@@ -851,7 +855,12 @@ void SetLive(bool on) {
         LONG ex = GetWindowLongW(m.h, GWL_EXSTYLE);
         SetWindowLongW(m.h, GWL_EXSTYLE, on ? (ex | WS_EX_LAYERED) : (ex & ~WS_EX_LAYERED));
         if (on) PaintLayered(m);
-        else { if (m.rt) m.rt->SetTextAntialiasMode(D2D1_TEXT_ANTIALIAS_MODE_DEFAULT); RedrawWindow(m.h, nullptr, nullptr, RDW_INVALIDATE | RDW_ERASE | RDW_FRAME | RDW_ALLCHILDREN); }
+        else {
+            // back to the full monitor (the transparent mode left it one pixel short, see PaintLayered)
+            SetWindowPos(m.h, nullptr, m.r.left, m.r.top, m.r.right - m.r.left, m.r.bottom - m.r.top, SWP_NOZORDER | SWP_NOACTIVATE);
+            if (m.rt) m.rt->SetTextAntialiasMode(D2D1_TEXT_ANTIALIAS_MODE_DEFAULT);
+            RedrawWindow(m.h, nullptr, nullptr, RDW_INVALIDATE | RDW_ERASE | RDW_FRAME | RDW_ALLCHILDREN);
+        }
     }
     Log(L"mesa: papel de parede animado %ls", on ? L"detectado: a mesa fica transparente (só os ícones)" : L"saiu: a mesa volta a desenhar o papel de parede");
 }
@@ -1619,11 +1628,82 @@ bool AnyUwpWindow() {
     return any;
 }
 
+// Wallpaper Engine sometimes loses the web wallpaper of one monitor for good: its WPEDesktopCEFWindow stays,
+// empty (no browser inside), and that monitor shows the static Windows wallpaper while the other keeps animating
+// (21/11/2026: the monitor with the Dock, after WacOS was installed). "wallpaper64 -control stop" + "play" brings
+// it back. This watchdog does that when a monitor has been empty for 8 s with nothing that justifies a pause
+// there (no maximized window on it, nothing full screen in front); at most once every 2 minutes.
+static bool MonitorHasMaximized(const RECT& mon) {
+    struct C { RECT mon; bool hit; } c{ mon, false };
+    EnumWindows([](HWND h, LPARAM p) -> BOOL {
+        auto* c = (C*)p;
+        if (!IsWindowVisible(h) || IsIconic(h) || !IsZoomed(h)) return TRUE;
+        DWORD cl = 0; DwmGetWindowAttribute(h, DWMWA_CLOAKED, &cl, sizeof(cl));
+        if (cl) return TRUE;
+        RECT r; GetWindowRect(h, &r);
+        POINT mid{ (r.left + r.right) / 2, (r.top + r.bottom) / 2 };
+        if (PtInRect(&c->mon, mid)) { c->hit = true; return FALSE; }
+        return TRUE;
+    }, (LPARAM)&c);
+    return c.hit;
+}
+static void WallpaperEngineWatch() {
+    if (shell::Setting(L"wallpaper_engine_vigia", L"1") != L"1") return;
+    HWND pm = FindWindowW(L"Progman", nullptr);
+    if (!pm) return;
+    struct W { std::vector<std::pair<HWND, RECT>> empty; int full = 0; DWORD pid = 0; } w;
+    EnumChildWindows(pm, [](HWND c, LPARAM l) -> BOOL {
+        auto* w = (W*)l;
+        wchar_t cls[64]; GetClassNameW(c, cls, 64);
+        if (wcscmp(cls, L"WPEDesktopCEFWindow") || !IsWindowVisible(c)) return TRUE;
+        GetWindowThreadProcessId(c, &w->pid);
+        RECT r; GetWindowRect(c, &r);
+        if (GetWindow(c, GW_CHILD)) w->full++; else w->empty.push_back({ c, r });
+        return TRUE;
+    }, (LPARAM)&w);
+    static DWORD emptySince, lastFix;
+    DWORD now = GetTickCount();
+    bool stuck = false;
+    if (!w.empty.empty()) {
+        HWND fg = GetForegroundWindow();
+        RECT fr{}; if (fg) GetWindowRect(fg, &fr);
+        for (auto& [h, r] : w.empty) {
+            MONITORINFO mi{ sizeof(mi) };
+            if (!GetMonitorInfoW(MonitorFromRect(&r, MONITOR_DEFAULTTONEAREST), &mi)) continue;
+            bool fgFull = fg && !mesa::IsDeskWindow(fg) && fr.left <= mi.rcMonitor.left && fr.top <= mi.rcMonitor.top && fr.right >= mi.rcMonitor.right && fr.bottom >= mi.rcMonitor.bottom;
+            if (!fgFull && !MonitorHasMaximized(mi.rcMonitor)) stuck = true;
+        }
+    }
+    if (!stuck) { emptySince = 0; return; }
+    if (!emptySince) { emptySince = now; return; }
+    if (now - emptySince < 8000 || (lastFix && now - lastFix < 120000)) return;
+    lastFix = now; emptySince = 0;
+    std::wstring exe;
+    if (HANDLE hp = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, w.pid)) {
+        wchar_t buf[MAX_PATH]; DWORD n = MAX_PATH;
+        if (QueryFullProcessImageNameW(hp, 0, buf, &n)) exe = buf;
+        CloseHandle(hp);
+    }
+    if (exe.empty()) return;
+    Log(L"mesa: Wallpaper Engine sem o papel de parede em %zu monitor(es) (com %d ok): recarregando (-control stop/play)", w.empty.size(), w.full);
+    std::thread([exe] {
+        for (const wchar_t* a : { L"stop", L"play" }) {
+            std::wstring cmd = L"\"" + exe + L"\" -control " + a;
+            STARTUPINFOW si{ sizeof(si) }; PROCESS_INFORMATION pi{};
+            if (CreateProcessW(exe.c_str(), cmd.data(), nullptr, nullptr, FALSE, CREATE_NO_WINDOW, nullptr, nullptr, &si, &pi)) {
+                WaitForSingleObject(pi.hProcess, 10000);
+                CloseHandle(pi.hThread); CloseHandle(pi.hProcess);
+            }
+            Sleep(1500);
+        }
+    }).detach();
+}
+
 // máquina de estados, a cada 500 ms
 void Tick() {
     {   // papel de parede animado entrou ou saiu (a cada ~2 s)
         static int n;
-        if (++n % 4 == 0 && !g_mons.empty()) SetLive(LiveWallpaperNow());
+        if (++n % 4 == 0 && !g_mons.empty()) { SetLive(LiveWallpaperNow()); WallpaperEngineWatch(); }
     }
     // explorer=0 / explorer=1 / explorer=fundo mandam. Sem o ajuste e com o Shell como shell do Windows: fundo.
     // Sem nenhum Explorador na sessão o Windows não liga o desfoque (transparência): o vidro do Dock, da barra e

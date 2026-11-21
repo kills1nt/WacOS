@@ -337,7 +337,7 @@ void Paint() {
     ui::GpuEnd(g_s);
 }
 
-void HideNow() { KillTimer(g_wnd, T_ANIM); ShowWindow(g_wnd, SW_HIDE); g_open = g_closing = false; g_snaps.clear(); }
+void HideNow() { vsync::Kill(g_wnd, T_ANIM); ShowWindow(g_wnd, SW_HIDE); g_open = g_closing = false; g_snaps.clear(); }
 void Close() { if (!g_open || g_closing) return; g_closing = true; g_at = anim::Now(); }
 
 void Go(int to) {
@@ -440,6 +440,6 @@ void tempo::Enter() {
     bool att = ft && ft != me && AttachThreadInput(me, ft, TRUE);
     SetForegroundWindow(g_wnd); SetFocus(g_wnd);
     if (att) AttachThreadInput(me, ft, FALSE);
-    SetTimer(g_wnd, T_ANIM, 16, nullptr);
+    vsync::Set(g_wnd, T_ANIM, 16);
     Log(L"time machine: %zu versões de %ls (backup: %ls)", g_snaps.size(), g_folder.c_str(), g_root.empty() ? L"nenhum" : g_root.c_str());
 }

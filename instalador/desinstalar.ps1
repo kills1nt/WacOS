@@ -47,7 +47,7 @@ if ($ajudante) {
 }
 Get-Process WacOSFinder, WacOSSettings, WacOSActivityMonitor, WacOSTerminal, WacOSCalculator, WacOSNotes, WacOSScreenshot, WacOSWindow32Host,
             WacOSPreview, WacOSReminders, WacOSCalendar, WacOSTextEdit, WacOSClock, WacOSWeather, WacOSContacts, WacOSPhotos,
-            WacOSTimeMachine, WacOSMusic, WacOSQuickTime, WacOSForceQuit -ErrorAction SilentlyContinue | Stop-Process -Force
+            WacOSTimeMachine, WacOSMusic, WacOSQuickTime, WacOSForceQuit, WinUltra -ErrorAction SilentlyContinue | Stop-Process -Force
 if (-not (Get-Process explorer -ErrorAction SilentlyContinue)) { Start-Process explorer.exe }
 
 # barra do Windows nos outros monitores (o Shell desliga enquanto roda e devolve ao sair; se não devolveu, devolve aqui)

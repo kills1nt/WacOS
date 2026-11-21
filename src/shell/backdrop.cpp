@@ -489,17 +489,20 @@ LRESULT CALLBACK MsgProc(HWND h, UINT m, WPARAM w, LPARAM l) {
         if (w == 1) frameDirty = true; else capDirty = true;
         static double last = 0;
         bool soPapel = w == 1 && !capDirty && !st_nonDesk.load();  // só o papel de parede animado: 30 por segundo
-        double gap = soPapel ? 33.0 : 15.5;
+        // windows moving behind the glass: once per refresh of the display (6 ms at 165 Hz; it was 15.5, ~64/s)
+        static double frameMs = 0, frameAt = -1e9;
+        if (anim::Now() - frameAt > 2000) { frameAt = anim::Now(); frameMs = std::max(4.0, vsync::FrameMs() - 0.6); }
+        double gap = soPapel ? 33.0 : frameMs;
         if (anim::Now() - last >= gap) { last = anim::Now(); st_nonDesk = false; Poll(w != 1); }
-        else SetTimer(h, T_RG + 1, soPapel ? 33 : 16, nullptr);  // cedo demais: monta no próximo tique (uma vez só)
+        else if (soPapel) SetTimer(h, T_RG + 1, 33, nullptr); else vsync::Set(h, T_RG + 1, 16);  // cedo demais: monta no próximo tique (uma vez só)
         return 0;
     }
     // o que ficou pendente; o temporizador só existe enquanto há algo (antes acordava 60 vezes/s sempre)
     if (m == WM_TIMER && w == T_RG + 1) {
-        KillTimer(h, T_RG + 1);
+        vsync::Kill(h, T_RG + 1);
         st_nonDesk = false;
         Poll(false);
-        if (frameDirty || capDirty) SetTimer(h, T_RG + 1, 16, nullptr);
+        if (frameDirty || capDirty) vsync::Set(h, T_RG + 1, 16);
         return 0;
     }
     if (m == WM_TIMER && w == T_RG && g_busy) return 0;
@@ -1035,7 +1038,7 @@ void SetActive(bool on) {
     active = on;
     try {
         if (on) { SetTimer(msgWnd, T_RG, 250, nullptr); SetTimer(msgWnd, T_RG + 1, 16, nullptr); }
-        else { KillTimer(msgWnd, T_RG); KillTimer(msgWnd, T_RG + 1); StopCaps(); }
+        else { KillTimer(msgWnd, T_RG); vsync::Kill(msgWnd, T_RG + 1); StopCaps(); }
     } catch (...) {}
     ApplyAffinity();
     Log(L"vidro real: %ls", on ? L"ligado" : L"desligado");

@@ -509,6 +509,7 @@ void shell::ApplyWorkArea() {
 static void Restore() {
     if (g_quitting) return;
     g_quitting = true;
+    winultra::Stop();
     tray::Stop();
     menus::Stop();
     dialogs::Stop();
@@ -866,6 +867,7 @@ static LRESULT CALLBACK MsgProc(HWND h, UINT m, WPARAM w, LPARAM l) {
         if (lastTheme < 0) lastTheme = themeNow();
         LoadSettings();
         ilha::Reload();
+        winultra::Reload();
         {   // barra_todos_monitores mudou: cria ou tira as barras dos monitores secundários (e a área de trabalho deles)
             static std::wstring lastAll = L"?";
             std::wstring all = shell::Setting(L"barra_todos_monitores", L"1");
@@ -1140,6 +1142,7 @@ int WINAPI wWinMain(HINSTANCE hi, HINSTANCE, PWSTR, int) {
     if (!soDock) bloqueio::Create(hi);  // tela de bloqueio do Sequoia (Win+L)
     notificacoes::Create(hi);  // Central de Notificações (clique no relógio da barra de menus)
     ilha::Create(hi);  // Ilha Dinâmica (ajuste ilha=1)
+    winultra::Start();  // WinUltra, a ilha de vidro (ajuste winultra=1)
     if (!soDock) notarapida::Create(hi);  // canto inferior direito: Nota Rápida
     if (!soDock) progresso::Create(hi);  // copiar/mover/apagar: a janela de progresso do Finder no lugar da do Windows
     if (!soDock) cantos::Start();         // Cantos Ativos (Mission Control, mesa, Launchpad... por canto)
@@ -1232,6 +1235,7 @@ int shell::RodarNativo(HINSTANCE hi, const std::wstring& dirBin, const std::wstr
     widgets::Create(hi);
     notificacoes::Create(hi);
     ilha::Create(hi);
+    winultra::Start();
     notarapida::Create(hi);
     progresso::Create(hi);
     cantos::Start();
