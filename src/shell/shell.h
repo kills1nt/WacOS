@@ -449,7 +449,7 @@ void Hide();                                 // clique, arrasto, menu: some já
 bool Showing(const std::wstring& appId);
 }
 
-namespace menubar { void CheckMaximized(); }  // barra_desfoque_max: blur the bar over a maximised app
+namespace menubar { void CheckMaximized(); bool Blurred(HMONITOR mon); }  // barra_desfoque_max: blur the bar over a maximised app
 namespace ilha {  // Ilha Dinâmica (ilha.cpp): notch/pílula preta no topo (música, timer, avisos, Estante...); ajuste ilha=1, ilha_estilo
 bool Create(HINSTANCE hi);
 void Reload();                  // ajustes mudaram (ilha, ilha_estilo, ilha_notificacoes, ilha_volume, ilha_passar)
@@ -463,6 +463,7 @@ void CapsLock();                // a tecla Caps Lock foi apertada (gancho de tec
 void PrivacidadeMudou();        // a bandeja mudou: relê o ícone de privacidade do Windows (tray::PrivacyBits)
 void Captura(bool copiada);     // a Captura de Tela terminou: aviso rápido "Captura feita" / "Captura copiada"
 int Privacidade();              // 1 microfone, 2 câmera em uso (bits); a 1ª chamada liga a vigia; mudou = menubar::Update()
+void Refresh();                 // repaint now (the menu bar blur over a maximised app changed)
 std::wstring ClockText();       // "Nov 22  14:30": the island's clock (ilha_relogio=1), also used centred on the other monitors' bars
 }
 namespace palco {  // Organizador Visual / Stage Manager (palco.cpp): ajuste organizador=1

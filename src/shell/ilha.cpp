@@ -1620,7 +1620,17 @@ void Paint() {
             SetWindowPos(g_back, g_wnd, gx, gy, gw, gh, SWP_NOACTIVATE | SWP_SHOWWINDOW);
             float op = std::clamp((float)_wtof(shell::Setting(L"ilha_opacidade", L"45").c_str()) / 100.f, 0.f, 1.f);
             float grow = std::clamp((p.bottom - p.top - PILL_H) / 60.f, 0.f, 1.f);
-            backdrop::Set(g_back, (float)gw, (float)gh, rad * sc, D2D1::ColorF(0.05f, 0.05f, 0.07f, std::min(1.f, op + 0.32f * grow)));
+            D2D1_COLOR_F tint = D2D1::ColorF(0.05f, 0.05f, 0.07f, std::min(1.f, op + 0.32f * grow));
+            // the menu bar is blurred over a maximised app: the closed island takes the bar's frosted look so it does
+            // not stand out as a dark slab; opening it brings its own tint back
+            if (menubar::Blurred(MonitorFromPoint({ 0, 0 }, MONITOR_DEFAULTTOPRIMARY))) {
+                float k = std::clamp((float)_wtof(shell::Setting(L"barra_desfoque_forca", L"45").c_str()) / 100.f, 0.f, 1.f);
+                float barA = (0x18 + k * 0x90) / 255.f;
+                D2D1_COLOR_F bc = ui::Dark() ? D2D1::ColorF(0.086f, 0.086f, 0.086f, barA) : D2D1::ColorF(0.95f, 0.95f, 0.95f, barA);
+                tint = D2D1::ColorF(bc.r + (tint.r - bc.r) * grow, bc.g + (tint.g - bc.g) * grow, bc.b + (tint.b - bc.b) * grow,
+                                    std::min(1.f, barA + 0.10f + (tint.a - barA - 0.10f) * grow));
+            }
+            backdrop::Set(g_back, (float)gw, (float)gh, rad * sc, tint);
             backdrop::Fade(g_back, alpha, 1, gw / 2.f, gh / 2.f);
         } else if (IsWindowVisible(g_back)) ShowWindow(g_back, SW_HIDE);
     }
@@ -2279,6 +2289,7 @@ void ilha::Captura(bool copiada) {
 }
 
 bool ilha::On() { return g_on; }
+void ilha::Refresh() { if (g_wnd && g_shown && !g_running) Paint(); }
 std::wstring ilha::ClockText() { std::wstring d, t; ClockParts(d, t); return d + L"  " + t; }
 
 // microfone/câmera em uso (1 microfone, 2 câmera) para a barra de menus; a 1ª chamada começa a vigiar o registro

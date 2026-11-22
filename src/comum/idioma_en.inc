@@ -1636,3 +1636,4 @@
 { L"Intensidade do desfoque da barra", L"Menu bar blur strength" },
 { L"Leve", L"Light" },
 { L"Opacidade do vidro da ilha", L"Island glass opacity" },
+{ L"%ls livres de %ls", L"%ls free of %ls" },

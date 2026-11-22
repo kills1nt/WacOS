@@ -1372,11 +1372,85 @@ void RenderIfChanged() {
 
 const UINT WM_BARDISPLAYS = WM_APP + 41;  // monitores mudaram: refaz as barras (fora do WndProc que recebeu o aviso)
 
+// ---- pulling a maximised window down from the menu bar (like dragging a maximised window's title bar on Windows):
+// the bar covers the title bar of a window maximised under it, so a press on an empty part of the bar grabs that
+// window; moving restores it under the pointer and drags it, letting go at the top of a screen maximises it again.
+// Cross-process WM_NCLBUTTONDOWN does not move windows (barras.cpp), so the move loop is done here.
+struct BarDrag { HWND bar = nullptr, win = nullptr; POINT start{}; bool moving = false; POINT off{}; } g_bd;
+
+HWND MaximisedUnder(HWND bar, POINT pt) {
+    HMONITOR mon = MonitorFromWindow(bar, MONITOR_DEFAULTTONEAREST);
+    MONITORINFO mi{ sizeof(mi) }; GetMonitorInfoW(mon, &mi);
+    RECT br; GetWindowRect(bar, &br);
+    POINT probe{ pt.x, br.bottom + 6 };
+    for (HWND h = GetTopWindow(nullptr); h; h = GetWindow(h, GW_HWNDNEXT)) {
+        if (!IsWindowVisible(h) || IsIconic(h) || !apps::IsAppWindow(h)) continue;
+        BOOL cl = FALSE; DwmGetWindowAttribute(h, DWMWA_CLOAKED, &cl, sizeof(cl));
+        if (cl) continue;
+        RECT r; GetWindowRect(h, &r);
+        if (!PtInRect(&r, probe)) continue;
+        // maximised, or the Mac "zoom" (fills the work area without the maximised state)
+        bool fills = r.left <= mi.rcWork.left + 10 && r.right >= mi.rcWork.right - 10 && r.top <= mi.rcWork.top + 10;
+        return IsZoomed(h) || fills ? h : nullptr;
+    }
+    return nullptr;
+}
+
+void BarDragMove(POINT c) {
+    if (!g_bd.win || !IsWindow(g_bd.win)) return;
+    if (!g_bd.moving) {
+        if (std::abs(c.x - g_bd.start.x) < 6 && std::abs(c.y - g_bd.start.y) < 6) return;
+        g_bd.moving = true;
+        RECT full; GetWindowRect(g_bd.win, &full);
+        float rel = std::clamp((c.x - full.left) / (float)std::max(1L, full.right - full.left), 0.f, 1.f);
+        int w, hh;
+        if (IsZoomed(g_bd.win)) {
+            ShowWindow(g_bd.win, SW_RESTORE);
+            RECT nr; GetWindowRect(g_bd.win, &nr);
+            w = nr.right - nr.left; hh = nr.bottom - nr.top;
+            if (w >= full.right - full.left - 20) { w = (full.right - full.left) * 7 / 10; hh = (full.bottom - full.top) * 7 / 10; }
+        } else { w = (full.right - full.left) * 7 / 10; hh = (full.bottom - full.top) * 7 / 10; }
+        g_bd.off = { (LONG)std::lround(rel * w), c.y - g_bd.start.y + (LONG)(14 * ui::Scale(g_bd.bar)) };
+        SetWindowPos(g_bd.win, nullptr, c.x - g_bd.off.x, c.y - g_bd.off.y, w, hh, SWP_NOZORDER | SWP_NOACTIVATE);
+        SetForegroundWindow(g_bd.win);
+        return;
+    }
+    SetWindowPos(g_bd.win, nullptr, c.x - g_bd.off.x, c.y - g_bd.off.y, 0, 0, SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE);
+}
+
+void BarDragEnd(POINT c) {
+    HWND win = g_bd.win; bool moved = g_bd.moving;
+    g_bd = {};
+    if (!win || !moved || !IsWindow(win)) return;
+    HMONITOR mon = MonitorFromPoint(c, MONITOR_DEFAULTTONEAREST);
+    MONITORINFO mi{ sizeof(mi) };
+    if (GetMonitorInfoW(mon, &mi) && c.y <= mi.rcMonitor.top + menubar::HeightOn(mon) + 2)
+        ShowWindow(win, SW_MAXIMIZE);  // dropped back at the top of a screen: maximised there again
+}
+
 LRESULT CALLBACK BarProc(HWND h, UINT m, WPARAM w, LPARAM l) {
     switch (m) {
+    case WM_MOUSEMOVE:
+        if (g_bd.win && GetCapture() == h) { POINT c; GetCursorPos(&c); BarDragMove(c); return 0; }
+        break;
+    case WM_LBUTTONUP:
+        if (g_bd.win) { POINT c; GetCursorPos(&c); if (GetCapture() == h) ReleaseCapture(); BarDragEnd(c); return 0; }
+        break;
+    case WM_CAPTURECHANGED:
+        if (g_bd.win && (HWND)l != h) { POINT c; GetCursorPos(&c); BarDragEnd(c); }
+        break;
     case WM_PAINT: { PAINTSTRUCT ps; BeginPaint(h, &ps); EndPaint(h, &ps); HWND keep = g_cur; g_cur = h; Render(); g_cur = keep; return 0; }
     case WM_LBUTTONDOWN: case WM_RBUTTONUP: {
         float sc = ui::Scale(h);
+        if (m == WM_LBUTTONDOWN && g_open < 0) {  // empty part of the bar over a maximised window: grab it
+            float px = (short)LOWORD(l) / sc;
+            bool onItem = false;
+            if (h == g_bar) for (auto& ht : g_hits) if (px >= ht.r.left && px < ht.r.right) { onItem = true; break; }
+            if (!onItem) {
+                POINT c; GetCursorPos(&c);
+                if (HWND win = MaximisedUnder(h, c)) { g_bd = { h, win, c, false, {} }; SetCapture(h); return 0; }
+            }
+        }
         HWND keep = g_cur;
         g_cur = h;  // os menus abrem embaixo da barra clicada (no monitor dela)
         Click({ (short)LOWORD(l) / sc, (short)HIWORD(l) / sc }, m == WM_RBUTTONUP);
@@ -1445,8 +1519,14 @@ void menubar::CheckMaximized() {
                 if (MonitorFromWindow(h, MONITOR_DEFAULTTONEAREST) == mon) want = true;
             }
         }
-        if (g_barBlur[b] != want) { g_barBlur[b] = want; BarGlass(b); InvalidateRect(b, nullptr, FALSE); }
+        if (g_barBlur[b] != want) { g_barBlur[b] = want; BarGlass(b); InvalidateRect(b, nullptr, FALSE); if (b == g_bar) ilha::Refresh(); }
     }
+}
+bool menubar::Blurred(HMONITOR mon) {
+    if (!g_bar) return false;
+    if (MonitorFromWindow(g_bar, MONITOR_DEFAULTTONEAREST) == mon) return g_barBlur[g_bar];
+    for (HWND b : g_extras) if (MonitorFromWindow(b, MONITOR_DEFAULTTONEAREST) == mon) return g_barBlur[b];
+    return false;
 }
 static bool g_fsOn;
 static HMONITOR g_fsMon;

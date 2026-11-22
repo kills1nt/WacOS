@@ -1630,3 +1630,4 @@
 { L"Intensidade do desfoque da barra", L"Сила розмиття смуги меню" },
 { L"Leve", L"Легке" },
 { L"Opacidade do vidro da ilha", L"Непрозорість скла острівця" },
+{ L"%ls livres de %ls", L"%ls вільно з %ls" },

@@ -2421,6 +2421,40 @@ static D2D1_RECT_F SidePanelRect() {
 }
 
 static float g_sideClipTop = Lay::SIDE_TOP;  // Tahoe (cena): a lista rola até o alto do painel, por baixo dos botões
+// ---- how full a disk is (sidebar and This PC): cached for 10 s per root; local and removable disks only (a
+// disconnected network share can block GetDiskFreeSpaceEx for seconds)
+static bool DiskUse(const std::wstring& root, float& used, std::wstring* text = nullptr) {
+    if (root.size() != 3 || root[1] != L':' || root[2] != L'\\') return false;
+    struct C { ULONGLONG total = 0, freeB = 0; DWORD at = 0; bool ok = false; };
+    static std::map<std::wstring, C> cache;
+    C& c = cache[root];
+    if (!c.at || GetTickCount() - c.at > 10000) {
+        c.at = GetTickCount() | 1;
+        UINT t = GetDriveTypeW(root.c_str());
+        ULARGE_INTEGER fr{}, tot{};
+        c.ok = (t == DRIVE_FIXED || t == DRIVE_REMOVABLE) && GetDiskFreeSpaceExW(root.c_str(), &fr, &tot, nullptr) && tot.QuadPart;
+        if (c.ok) { c.total = tot.QuadPart; c.freeB = fr.QuadPart; }
+    }
+    if (!c.ok) return false;
+    used = (float)(1.0 - (double)c.freeB / (double)c.total);
+    if (text) {
+        wchar_t f[64] = {}, t2[64] = {}, b[200];
+        StrFormatByteSizeW((LONGLONG)c.freeB, f, 64); StrFormatByteSizeW((LONGLONG)c.total, t2, 64);
+        swprintf_s(b, Tr(L"%ls livres de %ls"), f, t2);
+        *text = b;
+    }
+    return true;
+}
+static void DrawDiskBar(ID2D1DeviceContext* dc, ID2D1SolidColorBrush* br, D2D1_RECT_F r, float used, const Palette& pal) {
+    float rad = (r.bottom - r.top) / 2;
+    br->SetColor(g_dark ? D2D1::ColorF(1, 1, 1, 0.14f) : D2D1::ColorF(0, 0, 0, 0.10f));
+    dc->FillRoundedRectangle(D2D1::RoundedRect(r, rad, rad), br);
+    D2D1_COLOR_F c = used > 0.9f ? D2D1::ColorF(1.f, 0.27f, 0.23f) : used > 0.8f ? D2D1::ColorF(1.f, 0.62f, 0.04f) : pal.accent;
+    br->SetColor(c);
+    float x = r.left + std::max(2 * rad, (r.right - r.left) * std::clamp(used, 0.f, 1.f));
+    dc->FillRoundedRectangle(D2D1::RoundedRect(D2D1::RectF(r.left, r.top, x, r.bottom), rad, rad), br);
+}
+
 static void DrawSidebar(ID2D1DeviceContext* dc, const Palette& pal, ID2D1SolidColorBrush* br) {
     const float dx = g_tahoe ? 4.f : 0.f;  // Tahoe: conteúdo um pouco para dentro do painel
     dc->PushAxisAlignedClip(D2D1::RectF(0, g_sideClipTop, Lay::SIDEBAR_W, ClientDip().height - (g_tahoe && !Golden() ? 9 : 0)), D2D1_ANTIALIAS_MODE_ALIASED);
@@ -2537,9 +2571,15 @@ static void DrawSidebar(ID2D1DeviceContext* dc, const Palette& pal, ID2D1SolidCo
                 DrawGlyph(dc, s.glyph, D2D1::RectF(15.7f + dx, y, 33.7f + dx, y + Lay::SIDE_ROW_H), br);
             }
         }
+        float labelR = Lay::SIDEBAR_W - 12;
+        if (float used; DiskUse(s.path, used)) {  // disk: a small fill bar at the right end of the row
+            float cy = y + Lay::SIDE_ROW_H / 2, bw = 30;
+            DrawDiskBar(dc, br, D2D1::RectF(Lay::SIDEBAR_W - 14 - bw, cy - 2.5f, Lay::SIDEBAR_W - 14, cy + 2.5f), used, pal);
+            labelR = Lay::SIDEBAR_W - 14 - bw - 6;
+        }
         br->SetColor(g_tahoe && cur ? tahoe::Accent(g_dark) : leoSide && cur ? D2D1::ColorF(1, 1, 1, 1) : pal.text);
         dc->DrawTextW(s.label.c_str(), (UINT32)s.label.size(), g_tfSide, D2D1::RectF(40 + dx
-, y, Lay::SIDEBAR_W - 12, y + Lay::SIDE_ROW_H), br, D2D1_DRAW_TEXT_OPTIONS_CLIP);
+, y, labelR, y + Lay::SIDE_ROW_H), br, D2D1_DRAW_TEXT_OPTIONS_CLIP);
 
     }
 }
@@ -3326,6 +3366,28 @@ static void DrawIconGrid(ID2D1DeviceContext* dc, const Palette& pal, ID2D1SolidC
         if (i == g_renameIdx) continue;
 
         auto lr = ToView(LabelDoc(i));
+        float dUsed; std::wstring dText;
+        if (g_tagView == VIEW_COMPUTER && DiskUse(e.path, dUsed, &dText)) {
+            // This PC: the name on one line, a fill bar and "X free of Y" under it (like Get Info / the Mac's storage bar)
+            IDWriteTextLayout* nl = nullptr;
+            if (SUCCEEDED(gfx::dw->CreateTextLayout(e.label.c_str(), (UINT32)e.label.size(), g_tfLabel, lr.right - lr.left, 18, &nl))) {
+                DWRITE_TRIMMING tr{ DWRITE_TRIMMING_GRANULARITY_CHARACTER, 0, 0 }; nl->SetTrimming(&tr, nullptr);
+                nl->SetWordWrapping(DWRITE_WORD_WRAPPING_NO_WRAP);
+                if (e.sel) {
+                    DWRITE_TEXT_METRICS m{}; nl->GetMetrics(&m);
+                    br->SetColor(g_winActive ? pal.accent : pal.inactiveSel);
+                    dc->FillRoundedRectangle(D2D1::RoundedRect(D2D1::RectF(lr.left + m.left - 4, lr.top + m.top - 1, lr.left + m.left + m.width + 4, lr.top + m.top + m.height + 1), 4, 4), br);
+                    br->SetColor(g_winActive ? D2D1::ColorF(1, 1, 1, 1) : pal.text);
+                } else br->SetColor(pal.text);
+                dc->DrawTextLayout({ lr.left, lr.top }, nl, br, D2D1_DRAW_TEXT_OPTIONS_CLIP);
+                nl->Release();
+            }
+            float cx = (lr.left + lr.right) / 2, bw = std::min(lr.right - lr.left - 8, g_icon + 20);
+            DrawDiskBar(dc, br, D2D1::RectF(cx - bw / 2, lr.top + 21, cx + bw / 2, lr.top + 26), dUsed, pal);
+            br->SetColor(pal.text2);
+            dc->DrawTextW(dText.c_str(), (UINT32)dText.size(), g_tfStatus, D2D1::RectF(lr.left - 6, lr.top + 28, lr.right + 6, lr.top + 44), br, D2D1_DRAW_TEXT_OPTIONS_CLIP);
+            continue;
+        }
         IDWriteTextLayout* tl = nullptr;
         if (FAILED(gfx::dw->CreateTextLayout(e.label.c_str(), (UINT32)e.label.size(), g_tfLabel, lr.right - lr.left, lr.bottom - lr.top, &tl))) continue;
         if (e.sel) {  // nome dentro de uma "pílula" azul
