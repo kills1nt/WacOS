@@ -662,7 +662,7 @@ static bool IsFullscreen(HWND fg) {
     MONITORINFO mi{ sizeof(mi) };
     if (!GetMonitorInfoW(MonitorFromWindow(fg, MONITOR_DEFAULTTONEAREST), &mi)) return false;
     RECT r; if (!GetWindowRect(fg, &r)) return false;
-    return r.left <= mi.rcMonitor.left && r.top <= mi.rcMonitor.top && r.right >= mi.rcMonitor.right && r.bottom >= mi.rcMonitor.bottom;
+    return r.left <= mi.rcMonitor.left + 2 && r.top <= mi.rcMonitor.top + 2 && r.right >= mi.rcMonitor.right - 2 && r.bottom >= mi.rcMonitor.bottom - 2;  // 2 px: Chromium leaves 1 px for an auto-hide taskbar
 }
 
 // Jogo/vídeo em tela cheia no monitor `mon` (ou o Windows em modo "não incomodar": Direct3D exclusivo,
@@ -703,7 +703,7 @@ static HMONITOR FullByZOrder() {
             wchar_t cls[64] = {}; GetClassNameW(h, cls, 64);
             if (!wcscmp(cls, L"Shell_TrayWnd") || !wcscmp(cls, L"Shell_SecondaryTrayWnd")) continue;
             if (mesa::IsDeskClass(cls)) break;
-            bool covers = r.left <= m.left && r.top <= m.top && r.right >= m.right && r.bottom >= m.bottom;
+            bool covers = r.left <= m.left + 2 && r.top <= m.top + 2 && r.right >= m.right - 2 && r.bottom >= m.bottom - 2;  // Chromium full screen is 1 px short (auto-hide taskbar)
             if (covers) { if (!(IsZoomed(h) && (st & WS_CAPTION) == WS_CAPTION)) return hm; break; }
             if ((x.right - x.left) * (x.bottom - x.top) < monArea / 4) continue;
             break;
@@ -736,6 +736,7 @@ static void CheckFullscreen() {
     }
     dock::SetFullscreen(locked || (fs && fm == dock::MonitorHandle()));
     menubar::SetFullscreen(locked || fs, fm);
+    menubar::CheckMaximized();
     ilha::SetFullscreen(locked);  // a ilha confere sozinha a tela cheia do monitor principal (jogo, vídeo, app)
 }
 

@@ -1625,3 +1625,8 @@
 { L"Edge, Chrome, Figma, Discord, VS Code e outros apps que desenham a própria barra ganham os botões do Mac no lugar dos do Windows. Vale para as janelas abertas depois de mudar.", L"Edge, Chrome, Figma, Discord, VS Code та інші програми, що малюють власний заголовок, отримують кнопки Mac замість кнопок Windows. Діє для вікон, відкритих після зміни." },
 { L"Hora e data na ilha", L"Час і дата в острівці" },
 { L"A hora e a data (sem o dia da semana) saem da barra de menus e ficam na ilha. Nos outros monitores, o relógio vai para o meio da barra.", L"Час і дата (без дня тижня) переходять зі смуги меню в острівець. На інших моніторах годинник переїжджає в центр смуги." },
+{ L"Desfocar a barra de menus com app maximizado", L"Розмивати смугу меню над розгорнутою програмою" },
+{ L"Quando um app ocupa a tela inteira (maximizado, não em tela cheia), a barra de menus ganha um vidro desfocado por cima dele.", L"Коли програма займає весь екран (розгорнута, не на повний екран), смуга меню отримує розмите скло над нею." },
+{ L"Intensidade do desfoque da barra", L"Сила розмиття смуги меню" },
+{ L"Leve", L"Легке" },
+{ L"Opacidade do vidro da ilha", L"Непрозорість скла острівця" },

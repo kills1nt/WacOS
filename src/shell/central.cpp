@@ -696,7 +696,12 @@ void Sym(ID2D1DeviceContext* dc, ID2D1SolidColorBrush* br, const wchar_t* name, 
         if (sy) {
             D2D1_RECT_F g{}; sy->geo->GetBounds(nullptr, &g);
             float gw = std::max(g.right - g.left, 1.f), gh = std::max(g.bottom - g.top, 1.f);
-            float k = std::pow(std::min(gw, gh) / std::max(gw, gh), 0.3f);
+            // equal optical area: the geometric mean of the drawn width and height is the same for every symbol
+            // (a square camera and the two wide rectangles of Screen Mirroring look the same size)
+            float side = std::min(r.right - r.left, r.bottom - r.top);
+            float fit = std::min(side / gw, side / gh);              // what Draw would use
+            float want = side * 0.80f / std::sqrt(gw * gh);          // same area for all
+            float k = std::clamp(want / fit, 0.55f, 1.0f);
             float cx = (r.left + r.right) / 2, cy = (r.top + r.bottom) / 2, hw = (r.right - r.left) / 2 * k, hh = (r.bottom - r.top) / 2 * k;
             if (simbolo::Draw(dc, name, D2D1::RectF(cx - hw, cy - hh, cx + hw, cy + hh), br)) return;
         }
@@ -706,7 +711,7 @@ void Sym(ID2D1DeviceContext* dc, ID2D1SolidColorBrush* br, const wchar_t* name, 
     float s = std::max(r.right - r.left, r.bottom - r.top);
     float cx = (r.left + r.right) / 2, cy = (r.top + r.bottom) / 2;
     static std::map<int, IDWriteTextFormat*> fmts;
-    int key = (int)std::lround(s * 0.95f);
+    int key = (int)std::lround(s * 1.12f);  // Segoe Fluent glyphs carry padding: a bit bigger to match the SF symbols
     IDWriteTextFormat*& tf = fmts[key];
     if (!tf) { tf = ui::Format((float)key, DWRITE_FONT_WEIGHT_NORMAL, true, DWRITE_TEXT_ALIGNMENT_CENTER); if (tf) { tf->SetParagraphAlignment(DWRITE_PARAGRAPH_ALIGNMENT_CENTER); tf->SetWordWrapping(DWRITE_WORD_WRAPPING_NO_WRAP); } }
     wchar_t gl = fallback;
@@ -1238,12 +1243,12 @@ void PaintTahoe() {
         float spec = hov ? (prs || grow > 0.5f ? 1.3f : 1.f) : 0.f;  // apertado: +30 %
         liquid::Rim(dc, r, rad, dark, 1.0f, spec, lx, ly);  // fio branco em volta toda; os cantos só acendem com o ponteiro
     };
-    auto circleBtn = [&](D2D1_POINT_2F c, float r, bool on, const wchar_t* sym, wchar_t fb, D2D1_COLOR_F onColor) {
+    auto circleBtn = [&](D2D1_POINT_2F c, float r, bool on, const wchar_t* sym, wchar_t fb, D2D1_COLOR_F onColor, float gk = 0.56f) {
         if (on) {  // ligado: círculo branco com o símbolo colorido
             br->SetColor(D2D1::ColorF(1, 1, 1, 0.98f));
             dc->FillEllipse(D2D1::Ellipse(c, r, r), br);
         }
-        float s = r * 0.56f;
+        float s = r * gk;
         Sym(dc, br, sym, fb, D2D1::RectF(c.x - s, c.y - s, c.x + s, c.y + s), on ? onColor : white);
     };
     // os controles pela grade (cc_layout); editando, cada um ganha o "−" e aparecem lugares vazios embaixo
@@ -1254,9 +1259,20 @@ void PaintTahoe() {
         piece(r, (r.bottom - r.top) / 2);
         D2D1_POINT_2F c{ r.left + T_CAP / 2, (r.top + r.bottom) / 2 };
         circleBtn(c, 21, on, sym, fb, onColor);
-        if (sub.empty()) Text(dc, br, title, D2D1::RectF(c.x + 28, r.top, r.right - 10, r.bottom), g_tfBold, white);
+        // long names (Ukrainian "Зосередження") shrink to fit instead of ending in "…"
+        IDWriteTextFormat* tfT = g_tfBold;
+        {
+            float avail = sub.empty() ? r.right - 6 - (c.x + 24) - 2 : r.right - 10 - (c.x + 28) - 2;
+            static IDWriteTextFormat* tf12 = nullptr, *tf11 = nullptr, *tf10 = nullptr;
+            auto mk = [](float sz) { auto* f = ui::Format(sz, DWRITE_FONT_WEIGHT_SEMI_BOLD); if (f) { f->SetParagraphAlignment(DWRITE_PARAGRAPH_ALIGNMENT_CENTER); f->SetWordWrapping(DWRITE_WORD_WRAPPING_NO_WRAP); } return f; };
+            if (!tf12) tf12 = mk(12); if (!tf11) tf11 = mk(11); if (!tf10) tf10 = mk(10);
+            if (ui::TextWidth(tfT, title) > avail && tf12) tfT = tf12;
+            if (ui::TextWidth(tfT, title) > avail && tf11) tfT = tf11;
+            if (ui::TextWidth(tfT, title) > avail && tf10) tfT = tf10;
+        }
+        if (sub.empty()) Text(dc, br, title, D2D1::RectF(c.x + 24, r.top, r.right - 6, r.bottom), tfT, white);
         else {
-            Text(dc, br, title, D2D1::RectF(c.x + 28, c.y - 16, r.right - 10, c.y + 1), g_tfBold, white);
+            Text(dc, br, title, D2D1::RectF(c.x + 28, c.y - 16, r.right - 10, c.y + 1), tfT, white);
             // vibrancy (guia, seção 1.2): o texto secundário escuro é "plus-lighter" — clareia o que está atrás em vez de
             // cobrir com um cinza fixo, então pega a cor do fundo
             if (dark) {
@@ -1272,7 +1288,7 @@ void PaintTahoe() {
         float cr = std::min(r.right - r.left, r.bottom - r.top) / 2;
         D2D1_POINT_2F c{ (r.left + r.right) / 2, (r.top + r.bottom) / 2 };
         piece(D2D1::RectF(c.x - cr, c.y - cr, c.x + cr, c.y + cr), cr);
-        circleBtn(c, on ? cr - 1 : cr, on, sym, fb, onColor);
+        circleBtn(c, on ? cr - 1 : cr, on, sym, fb, onColor, 0.44f);  // big round tiles: the symbol at the size of the capsule ones (Mac)
         g_hits.push_back({ id, D2D1::RectF(c.x - cr, c.y - cr, c.x + cr, c.y + cr), arg });
     };
     auto nowPlaying = [&](D2D1_RECT_F med) {
@@ -1530,7 +1546,7 @@ void PaintTahoe() {
     // Editar Controles (pílula); editando: Concluído
     float y7 = yEnd + T_G;
     std::wstring edLabel = g_editing ? Tr(L"Concluído") : Tr(L"Editar Controles");
-    float ew = 112;  // pílula de 112 × 24 (guia, seção 40)
+    float ew = std::max(112.f, ui::TextWidth(g_tfTile, edLabel) + 28);  // pílula de 112 × 24 (guia, seção 40); mais larga se o texto pedir
     D2D1_RECT_F ed = D2D1::RectF(W / 2 - ew / 2, y7, W / 2 + ew / 2, y7 + T_EDIT);
     piece(ed, T_EDIT / 2);
     g_tfTile->SetParagraphAlignment(DWRITE_PARAGRAPH_ALIGNMENT_CENTER);

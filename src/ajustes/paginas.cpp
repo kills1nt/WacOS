@@ -1305,6 +1305,8 @@ Page AparenciaLeopard() {
 // Sequoia, ou o Liquid Glass do macOS Tahoe (lente nas bordas, brilho especular, cantos redondos)
 // em "Nítido" ou "Tingido", como no 26.1. Tudo vai para %APPDATA%\Shell\ajustes.txt e o Shell
 // reaplica na hora (mensagem ShellAjustesMudaram).
+static float NumSetting(const wchar_t* k, float def) { std::wstring v = Setting(k, L""); return v.empty() ? def : (float)_wtof(v.c_str()); }
+static std::function<void(float)> SetNum(const wchar_t* k) { std::wstring kk = k; return [kk](float v) { SetSetting(kk.c_str(), std::to_wstring((int)std::lround(v))); }; }
 Page TransparenciaEfeitos() {
     Page p;
     auto on = [](const wchar_t* k, const wchar_t* d) { return Setting(k, d) == L"1"; };
@@ -1415,7 +1417,14 @@ Page TransparenciaEfeitos() {
     Row wtint = Toggle(L"Permitir tingir janelas com o papel de parede", [] { return Setting(L"tingir_janelas", L"1") != L"0"; },
                        [](bool v) { SetSetting(L"tingir_janelas", v ? L"1" : L"0"); },
                        L"A barra lateral dos apps (Lembretes, Calendário, Contatos, Fotos, Música) ganha um pouco da cor do papel de parede. Vale ao abrir o app de novo.");
-    p.groups.push_back(G({ red, tint, bar, wtint }, L"Transparência"));
+    // a maximised app under the menu bar: the bar blurs it a little (like the Mac bar over a full-height window)
+    Row maxb = Toggle(L"Desfocar a barra de menus com app maximizado", [] { return Setting(L"barra_desfoque_max", L"1") != L"0"; },
+                      [](bool v) { SetSetting(L"barra_desfoque_max", v ? L"1" : L"0"); Rebuild(); },
+                      L"Quando um app ocupa a tela inteira (maximizado, não em tela cheia), a barra de menus ganha um vidro desfocado por cima dele.");
+    Row maxf = Slider(L"Intensidade do desfoque da barra", 0, 100, [] { return NumSetting(L"barra_desfoque_forca", 45); }, SetNum(L"barra_desfoque_forca"), L"Leve", L"Forte");
+    maxf.hasDef = true; maxf.def = 45;
+    maxf.enabled = Setting(L"barra_desfoque_max", L"1") != L"0";
+    p.groups.push_back(G({ red, tint, bar, wtint, maxb, maxf }, L"Transparência"));
 
     Row genie = Toggle(L"Efeito gênio ao minimizar", [] { return Setting(L"genio", L"1") == L"1"; },
                        [](bool v) { SetSetting(L"genio", v ? L"1" : L"0"); });
@@ -1489,6 +1498,11 @@ Page IlhaDinamica() {
                         [](int i) { SetSetting(L"ilha_estilo", i == 1 ? L"ilha" : i == 2 ? L"notificacao" : L"notch"); });
         ilha.push_back(est);
         ilha.push_back(Toggle(L"Abrir ao passar o ponteiro", on(L"ilha_passar", L"1"), set(L"ilha_passar")));
+        {
+            Row op = Slider(L"Opacidade do vidro da ilha", 0, 100, [] { return NumSetting(L"ilha_opacidade", 45); }, SetNum(L"ilha_opacidade"), L"Transparente", L"Opaco");
+            op.hasDef = true; op.def = 45;
+            ilha.push_back(op);
+        }
         ilha.push_back(Toggle(L"Hora e data na ilha", on(L"ilha_relogio", L"0"), set(L"ilha_relogio"),
                               L"A hora e a data (sem o dia da semana) saem da barra de menus e ficam na ilha. Nos outros monitores, o relógio vai para o meio da barra."));
         ilha.push_back(Toggle(L"Mostrar notificações na ilha", on(L"ilha_notificacoes", L"1"), set(L"ilha_notificacoes")));
@@ -1505,8 +1519,6 @@ Page IlhaDinamica() {
 // ================= Personalizar o Dock / a Mesa (pedido de 20/11/2026, na linha do MyDockFinder)
 // O Shell lê cada chave (dock.cpp ReadSettings, mesa.cpp LerMedidas, widgets.cpp SettingsChanged) assim que o
 // ajustes.txt muda. Chave vazia = o padrão medido do Mac em cada tema.
-static float NumSetting(const wchar_t* k, float def) { std::wstring v = Setting(k, L""); return v.empty() ? def : (float)_wtof(v.c_str()); }
-static std::function<void(float)> SetNum(const wchar_t* k) { std::wstring kk = k; return [kk](float v) { SetSetting(kk.c_str(), std::to_wstring((int)std::lround(v))); }; }
 static Row Flag(const std::wstring& label, const wchar_t* k, const wchar_t* def, const std::wstring& detail = L"") {
     std::wstring kk = k, dd = def;
     return Toggle(label, [kk, dd] { return Setting(kk.c_str(), dd.c_str()) != L"0"; }, [kk](bool on) { SetSetting(kk.c_str(), on ? L"1" : L"0"); }, detail);

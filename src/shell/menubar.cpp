@@ -551,8 +551,16 @@ bool BarBackground() {
     return shell::Setting(L"barra_fundo", L"1") != L"0";
 }
 
+// a maximised app under the bar (barra_desfoque_max): the bar gets a blurred acrylic over it
+std::map<HWND, bool> g_barBlur;
 void BarGlass(HWND bar) {
     if (!bar) return;
+    if (g_barBlur[bar] && !liquid::Leopard()) {
+        float k = std::clamp((float)_wtof(shell::Setting(L"barra_desfoque_forca", L"45").c_str()) / 100.f, 0.f, 1.f);
+        DWORD a = (DWORD)std::lround(0x18 + k * 0x90);
+        ui::Acrylic(bar, (a << 24) | (ui::Dark() ? 0x161616u : 0xF2F2F2u));
+        return;
+    }
     // Leopard: o degradê branco translúcido vem do Render. Translúcida (padrão): transparência de verdade, SEM desfoque
     // (o 10.5 deixava o papel de parede aparecer nítido através da barra); opaca: acrílico cheio por baixo
     const bool leoClear = liquid::Leopard() && shell::Setting(L"barra_translucida", L"1") == L"1";
@@ -659,7 +667,8 @@ void Render() {
     // sem fundo, ou no Tahoe (o vidro da barra é tão leve que o papel de parede aparece quase inteiro):
     // a cor do texto e dos ícones segue o papel de parede atrás
     const bool bgOn0 = BarBackground();
-    if (!bgOn0 || liquid::On()) dark = WallpaperTopDark(dark);
+    const bool blurNow = g_barBlur[bar];
+    if ((!bgOn0 || liquid::On()) && !blurNow) dark = WallpaperTopDark(dark);
     const bool leo = liquid::Leopard();
     // Leopard: Lucida Grande 14 px no Mac; no Windows, a Lucida Sans Unicode (o mesmo desenho de origem)
     static IDWriteTextFormat* tfLeo = ui::FormatFace(L"Lucida Sans Unicode", 14, DWRITE_FONT_WEIGHT_NORMAL);
@@ -1418,6 +1427,26 @@ void menubar::ApplyTheme() {
     BarGlass(g_bar);
     InvalidateRect(g_bar, nullptr, FALSE);
     for (HWND b : g_extras) { BarGlass(b); InvalidateRect(b, nullptr, FALSE); }
+}
+// Is a maximised app window on each bar's monitor? (called with the full-screen check, ~1/s and on window events)
+void menubar::CheckMaximized() {
+    if (!g_bar) return;
+    bool on = shell::Setting(L"barra_desfoque_max", L"1") != L"0";
+    std::vector<HWND> all{ g_bar };
+    all.insert(all.end(), g_extras.begin(), g_extras.end());
+    for (HWND b : all) {
+        bool want = false;
+        if (on) {
+            HMONITOR mon = MonitorFromWindow(b, MONITOR_DEFAULTTONEAREST);
+            for (HWND h = GetTopWindow(nullptr); h && !want; h = GetWindow(h, GW_HWNDNEXT)) {
+                if (!IsWindowVisible(h) || IsIconic(h) || !IsZoomed(h) || !apps::IsAppWindow(h)) continue;
+                BOOL cl = FALSE; DwmGetWindowAttribute(h, DWMWA_CLOAKED, &cl, sizeof(cl));
+                if (cl) continue;
+                if (MonitorFromWindow(h, MONITOR_DEFAULTTONEAREST) == mon) want = true;
+            }
+        }
+        if (g_barBlur[b] != want) { g_barBlur[b] = want; BarGlass(b); InvalidateRect(b, nullptr, FALSE); }
+    }
 }
 static bool g_fsOn;
 static HMONITOR g_fsMon;

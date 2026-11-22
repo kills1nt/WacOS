@@ -764,7 +764,7 @@ bool CoveredByFullscreen(HWND piece) {
     MONITORINFO mi{ sizeof(mi) };
     if (!GetMonitorInfoW(MonitorFromWindow(fg, MONITOR_DEFAULTTONEAREST), &mi)) return false;
     RECT r; GetWindowRect(fg, &r);
-    if (r.left > mi.rcMonitor.left || r.top > mi.rcMonitor.top || r.right < mi.rcMonitor.right || r.bottom < mi.rcMonitor.bottom) return false;
+    if (r.left > mi.rcMonitor.left + 2 || r.top > mi.rcMonitor.top + 2 || r.right < mi.rcMonitor.right - 2 || r.bottom < mi.rcMonitor.bottom - 2) return false;
     RECT pr; GetWindowRect(piece, &pr);
     RECT x; if (!IntersectRect(&x, &pr, &mi.rcMonitor) || !EqualRect(&x, &pr)) return false;  // a peça sai do monitor do app
     for (HWND w = GetWindow(piece, GW_HWNDPREV); w; w = GetWindow(w, GW_HWNDPREV)) if (w == fg) { lastRes = true; break; }  // o app está acima

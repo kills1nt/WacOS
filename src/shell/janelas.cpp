@@ -145,7 +145,7 @@ bool CobreMonitor(HWND h) {
     MONITORINFO mi{ sizeof(mi) };
     RECT r;
     if (!GetWindowRect(h, &r) || !GetMonitorInfoW(MonitorFromWindow(h, MONITOR_DEFAULTTONEAREST), &mi)) return false;
-    return r.left <= mi.rcMonitor.left && r.top <= mi.rcMonitor.top && r.right >= mi.rcMonitor.right && r.bottom >= mi.rcMonitor.bottom;
+    return r.left <= mi.rcMonitor.left + 2 && r.top <= mi.rcMonitor.top + 2 && r.right >= mi.rcMonitor.right - 2 && r.bottom >= mi.rcMonitor.bottom - 2;  // 2 px: Chromium leaves 1 px for an auto-hide taskbar
 }
 
 // O próprio Shell roda como administrador? (aí o gancho entra também nos programas elevados)

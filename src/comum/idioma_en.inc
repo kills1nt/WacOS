@@ -1631,3 +1631,8 @@
 { L"Edge, Chrome, Figma, Discord, VS Code e outros apps que desenham a própria barra ganham os botões do Mac no lugar dos do Windows. Vale para as janelas abertas depois de mudar.", L"Edge, Chrome, Figma, Discord, VS Code and other apps that draw their own title bar get the Mac buttons instead of the Windows ones. Applies to windows opened after the change." },
 { L"Hora e data na ilha", L"Time and date in the island" },
 { L"A hora e a data (sem o dia da semana) saem da barra de menus e ficam na ilha. Nos outros monitores, o relógio vai para o meio da barra.", L"The time and date (without the weekday) move from the menu bar into the island. On the other displays the clock moves to the middle of the bar." },
+{ L"Desfocar a barra de menus com app maximizado", L"Blur the menu bar over a maximized app" },
+{ L"Quando um app ocupa a tela inteira (maximizado, não em tela cheia), a barra de menus ganha um vidro desfocado por cima dele.", L"When an app fills the screen (maximized, not full screen), the menu bar gets blurred glass over it." },
+{ L"Intensidade do desfoque da barra", L"Menu bar blur strength" },
+{ L"Leve", L"Light" },
+{ L"Opacidade do vidro da ilha", L"Island glass opacity" },

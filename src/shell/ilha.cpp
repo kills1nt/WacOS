@@ -37,9 +37,12 @@
 #include <winrt/Windows.Foundation.h>
 #include <winrt/Windows.Foundation.Collections.h>
 #include <winrt/Windows.Media.Control.h>
+#include <winrt/Windows.ApplicationModel.DataTransfer.h>
 #include <winrt/Windows.Storage.Streams.h>
 #include <algorithm>
 #include <cmath>
+#include <atomic>
+#include <memory>
 #include <condition_variable>
 #include <deque>
 #include <map>
@@ -54,7 +57,7 @@ namespace wmc = winrt::Windows::Media::Control;
 
 namespace {
 
-const UINT WM_IL_FRAME = WM_APP + 1, WM_IL_MEDIA = WM_APP + 2, WM_IL_CAPS = WM_APP + 3, WM_IL_PRIV = WM_APP + 4, WM_IL_DOWN = WM_APP + 5;
+const UINT WM_IL_FRAME = WM_APP + 1, WM_IL_MEDIA = WM_APP + 2, WM_IL_CAPS = WM_APP + 3, WM_IL_PRIV = WM_APP + 4, WM_IL_DOWN = WM_APP + 5, WM_IL_HIST = WM_APP + 6;
 const UINT_PTR TM_HOVER = 1, TM_LEAVE = 2, TM_PEEK = 3, TM_HUD = 4, TM_EQ = 5, TM_PAUSE = 6, TM_GONE = 7, TM_TICK = 8, TM_STATS = 9, TM_CAPS = 10, TM_CLOCK = 11;
 
 enum Style { S_NOTCH, S_ILHA, S_AVISO };
@@ -63,10 +66,10 @@ enum Tab { TAB_HOME, TAB_TIMER, TAB_CLIP, TAB_SHELF, TAB_STATS, TAB_N };
 enum HudKind { HUD_VOL, HUD_CAPS, HUD_BAT, HUD_COPY, HUD_SHOT };
 
 // medidas em pt
-const float WMAX = 470, HMAX = 210;   // a janela: o maior tamanho (aberta) com folga para a mola e a sombra
-const float PILL_H = 22;              // pílula fechada (estilos ilha/notificação): cabe na barra de menus
-const float OPEN_W = 300, BODY_H = 106;  // aberta: corpo de 300 pt (o player do Atoll tem ~280) e conteúdo abaixo do cabeçalho
-const float NOTCH_W = 184;            // entalhe parado
+const float WMAX = 660, HMAX = 300;   // a janela: o maior tamanho (aberta) com folga para a mola e a sombra
+const float PILL_H = 27;              // pílula fechada (estilos ilha/notificação): a bit taller than the menu bar, like the iPhone island
+const float OPEN_W = 560, BODY_H = 214;  // open: about twice the old card (300 x 106), room for a real player, volume and the clipboard grid
+const float NOTCH_W = 210;            // entalhe parado
 const float SHADOW = 10;              // margem da sombra (estilo ilha)
 
 // ---- mola do SwiftUI (resposta, amortecimento), integrada por quadro: pode trocar de alvo no meio
@@ -87,6 +90,8 @@ struct Spr {
 };
 
 HWND g_wnd;
+HWND g_back;                 // the Liquid Glass under the pill (backdrop.cpp: blur + refraction of what is behind)
+bool g_glass;                // backdrop attached to g_back
 ui::GpuSurface g_s;
 bool g_on, g_notesOn, g_volOn, g_hoverOpen, g_copyOn;
 bool g_clock;                // ilha_relogio=1: the clock (time and the short date, Nov 22) lives in the island, not in the menu bar
@@ -103,6 +108,7 @@ int g_springKind;            // 0 troca fechada, 1 abrindo, 2 fechando
 Spr g_w, g_h, g_rt, g_rb, g_a;  // largura, altura, raio de cima (orelha no notch), raio de baixo, opacidade
 bool g_running;
 RECT g_rgn{};
+IDWriteTextFormat *g_tfHomeT, *g_tfHomeA;  // the big player: title 16 and artist 13
 IDWriteTextFormat *g_tfTitle, *g_tfSub, *g_tfSmall, *g_tfSmallR, *g_tfSmallC, *g_tfWing, *g_tfWingR, *g_tfBig, *g_tfVal,
     *g_tfIcon, *g_tfIconS, *g_tfIconL, *g_tfChip;
 
@@ -161,7 +167,7 @@ ULONGLONG g_lastIdle, g_lastKern, g_lastUser; double g_lastNetAt;
 
 // ---- interação
 enum HitId { H_NONE, H_TAB, H_GEAR, H_PREV, H_PLAY, H_NEXT, H_SHUF, H_OUT, H_SEEK, H_ART, H_PRESET, H_TPAUSE, H_TSTOP, H_TPLUS,
-             H_CLIP, H_CLIPCLR, H_SHELF, H_SHELFCLR, H_TMINUS };
+             H_CLIP, H_CLIPCLR, H_SHELF, H_SHELFCLR, H_TMINUS, H_VOL };
 struct Hit { HitId id; D2D1_RECT_F r; int arg = 0; };
 std::vector<Hit> g_hits;
 HitId g_hoverHit = H_NONE; int g_hoverArg = -1;
@@ -682,6 +688,31 @@ struct DropTarget : IDropTarget {
 } g_dropTgt;
 
 // ================= Transferência
+// Windows clipboard history (Win+V, when it is on): the island's Clipboard tab shows it too, not only what was
+// copied since the Shell started. Read on a worker thread; the texts come back to the window (WM_IL_HIST).
+void LoadClipHistory() {
+    static std::atomic<bool> busy{ false };
+    if (busy.exchange(true)) return;
+    std::thread([] {
+        auto* out = new std::vector<std::wstring>();
+        try {
+            winrt::init_apartment(winrt::apartment_type::multi_threaded);
+            namespace dt = winrt::Windows::ApplicationModel::DataTransfer;
+            if (dt::Clipboard::IsHistoryEnabled()) {
+                auto res = dt::Clipboard::GetHistoryItemsAsync().get();
+                if (res.Status() == dt::ClipboardHistoryItemsResultStatus::Success)
+                    for (auto const& it : res.Items()) {
+                        if (out->size() >= 12) break;
+                        auto c = it.Content();
+                        if (c.Contains(dt::StandardDataFormats::Text())) out->push_back(std::wstring(c.GetTextAsync().get()));
+                    }
+            }
+        } catch (...) {}
+        if (!PostMessageW(g_wnd, WM_IL_HIST, 0, (LPARAM)out)) delete out;
+        busy = false;
+    }).detach();
+}
+
 void ReadClipboard() {
     static UINT exclude = RegisterClipboardFormatW(L"ExcludeClipboardContentFromMonitorProcessing");
     static UINT history = RegisterClipboardFormatW(L"CanIncludeInClipboardHistory");
@@ -720,7 +751,7 @@ void CopyText(const std::wstring& s) {
 // ================= o que a ilha mostra
 bool ShowsMedia() { return g_m.has && (g_m.playing || g_pauseHold); }
 bool Notch() { return g_style == S_NOTCH; }
-float HeadH() { return Notch() ? g_barPt : 28.f; }   // cabeçalho das abas (no notch, a própria altura da barra)
+float HeadH() { return Notch() ? g_barPt : 36.f; }   // cabeçalho das abas (no notch, a própria altura da barra)
 float TopOff() { return Notch() ? 0.f : std::max(0.f, (g_barPt - PILL_H) / 2); }
 
 // ---- the clock in the island (ilha_relogio=1): "Nov 22" dimmed and the time in white, no weekday
@@ -788,15 +819,15 @@ Size SizeOf(Mode m) {
     }
     const float clk = g_clock ? ClockW() : 0;
     switch (m) {
-    case M_IDLE:  return { std::max(112.f, clk + 28) + priv, PILL_H, 11, 11 };
-    case M_MEDIA: case M_TIMER: return { 150 + (g_clock ? clk + 8 : 0) + priv, PILL_H, 11, 11 };
-    case M_HUD:   return { 176, PILL_H, 11, 11 };
-    case M_PEEK:  return { 320, 54, 20, 20 };
+    case M_IDLE:  return { std::max(150.f, clk + 40) + priv, PILL_H, PILL_H / 2, PILL_H / 2 };
+    case M_MEDIA: case M_TIMER: return { 200 + (g_clock ? clk + 8 : 0) + priv, PILL_H, PILL_H / 2, PILL_H / 2 };
+    case M_HUD:   return { 230, PILL_H, PILL_H / 2, PILL_H / 2 };
+    case M_PEEK:  return { 400, 66, 26, 26 };
     case M_OPEN: {  // cantos do cartão por tema: Golden Gate maiores (macOS 27), Leopard o HUD do 10.5
-        float r = liquid::Golden() ? 30.f : liquid::Leopard() ? 12.f : 24.f;
-        return { OPEN_W, 28 + BODY_H, r, r };
+        float r = liquid::Golden() ? 36.f : liquid::Leopard() ? 12.f : 30.f;
+        return { OPEN_W, HeadH() + BODY_H, r, r };
     }
-    default:      return { 90, 14, 7, 7 };
+    default:      return { 110, 16, 8, 8 };
     }
 }
 
@@ -845,6 +876,7 @@ void Update() {
     // ia aparecer do nada: confere antes se não há algo em tela cheia (vídeo que entrou em tela cheia sem trocar de janela)
     if (m != M_HIDDEN && !g_shown && FullOnPrimary()) { g_full = true; Log(L"ilha: tela cheia, some"); m = M_HIDDEN; }
     double now = anim::Now();
+    if (m != g_mode && m == M_OPEN && g_tab == TAB_CLIP) LoadClipHistory();
     if (m != g_mode) {
         bool big = m == M_OPEN || m == M_PEEK, wasBig = g_mode == M_OPEN || g_mode == M_PEEK;
         g_springKind = big ? 1 : wasBig ? 2 : 0;
@@ -1053,10 +1085,16 @@ const wchar_t* TAB_NAME[TAB_N] = { L"Início", L"Timer", L"Transferência", L"Es
 
 // b = o corpo (no notch, sem as orelhas); o cabeçalho fica na faixa da barra de menus, como as abas do Atoll
 void DrawHeader(ID2D1DeviceContext* dc, ID2D1SolidColorBrush* br, D2D1_RECT_F b) {
-    float H = HeadH(), cy = b.top + H / 2 + (Notch() ? 0 : 2);
-    float x = b.left + 12;
+    float H = HeadH(), cy = b.top + H / 2 + (Notch() ? 0 : 4);
+    const float tw = Notch() ? 24.f : 34.f, th = Notch() ? 18.f : 24.f, pitch = tw + 4;
+    float x = b.left + (Notch() ? 12 : 18);
+    if (!Notch() && Glassy()) {  // the tabs sit in a recessed glass track, like an iOS 26 segmented control
+        D2D1_RECT_F trk = D2D1::RectF(x - 3, cy - th / 2 - 3, x + TAB_N * pitch - 1, cy + th / 2 + 3);
+        br->SetColor(D2D1::ColorF(0, 0, 0, 0.22f));
+        dc->FillRoundedRectangle(D2D1::RoundedRect(trk, (trk.bottom - trk.top) / 2, (trk.bottom - trk.top) / 2), br);
+    }
     for (int i = 0; i < TAB_N; i++) {
-        D2D1_RECT_F r = D2D1::RectF(x, cy - 9, x + 24, cy + 9);
+        D2D1_RECT_F r = D2D1::RectF(x, cy - th / 2, x + tw, cy + th / 2);
         bool on = g_tab == i;
         if (on && g_theme == TH_LEOPARD) {  // o segmento escolhido em gel azul Aqua
             float rr = 5;
@@ -1066,75 +1104,114 @@ void DrawHeader(ID2D1DeviceContext* dc, ID2D1SolidColorBrush* br, D2D1_RECT_F b)
             dc->FillRoundedRectangle(D2D1::RoundedRect(D2D1::RectF(r.left + 1, r.top + 1, r.right - 1, (r.top + r.bottom) / 2), rr - 1, rr - 1), br);
             br->SetColor(D2D1::ColorF(0, 0, 0, 0.5f));
             dc->DrawRoundedRectangle(D2D1::RoundedRect(r, rr, rr), br, 0.75f);
-        } else if (on || Hover(H_TAB, i)) Chip(dc, br, r, ChipR(18), on ? 1.f : 0.f);
-        Glyph(dc, br, TAB_GLYPH[i], g_tfIconS, r, on ? WHITE : GRAY);
+        } else if (on || Hover(H_TAB, i)) Chip(dc, br, r, ChipR(th), on ? 1.f : 0.f);
+        Glyph(dc, br, TAB_GLYPH[i], Notch() ? g_tfIconS : g_tfIcon, r, on ? WHITE : GRAY);
         AddHit(H_TAB, r, i);
-        x += 27;
+        x += Notch() ? 27 : pitch;
     }
-    D2D1_RECT_F gr = D2D1::RectF(b.right - 12 - 22, cy - 9, b.right - 12, cy + 9);
-    if (Hover(H_GEAR)) Chip(dc, br, gr, ChipR(18), 1);
+    if (!Notch())  // the name of the open tab next to the switcher
+        Text(dc, br, Tr(TAB_NAME[g_tab]), g_tfTitle, D2D1::RectF(x + 10, cy - 10, b.right - 60, cy + 10), GRAY);
+    D2D1_RECT_F gr = D2D1::RectF(b.right - (Notch() ? 12 : 18) - (Notch() ? 22 : 28), cy - th / 2, b.right - (Notch() ? 12 : 18), cy + th / 2);
+    if (Hover(H_GEAR)) Chip(dc, br, gr, ChipR(th), 1);
     Glyph(dc, br, 0xE713, g_tfIconS, gr, GRAY);
     AddHit(H_GEAR, gr);
 }
 
-// o player do Atoll (modo minimalista), nas proporções da captura do projeto: capa 40 pt a 14 pt da borda,
-// título 12,5 / artista 11, barrinhas à direita na altura do título; linha do tempo 3 pt com o restante na cor da
-// capa; 5 botões a 50 pt um do outro
-void DrawHome(ID2D1DeviceContext* dc, ID2D1SolidColorBrush* br, D2D1_RECT_F b, float y0) {
-    const float L = b.left + 14, R = b.right - 16;
-    D2D1_RECT_F art = D2D1::RectF(L, y0, L + 40, y0 + 40);
-    DrawArt(dc, br, art, g_theme == TH_LEOPARD ? 4.f : g_theme == TH_GOLDEN ? 11.f : 9.f);
-    if (g_theme == TH_LEOPARD) {
-        // o reflexo do Cover Flow embaixo da capa: espelhada, sumindo em 10 pt
-        ID2D1GradientStopCollection* gs = nullptr;
-        D2D1_GRADIENT_STOP st[] = { { 0, D2D1::ColorF(0, 0, 0, 0.35f) }, { 1, D2D1::ColorF(0, 0, 0, 0) } };
-        dc->CreateGradientStopCollection(st, 2, &gs);
-        ID2D1LinearGradientBrush* mask = nullptr;
-        if (gs) dc->CreateLinearGradientBrush(D2D1::LinearGradientBrushProperties({ 0, art.bottom + 1 }, { 0, art.bottom + 11 }), gs, &mask);
-        if (mask) {
-            D2D1_MATRIX_3X2_F old; dc->GetTransform(&old);
-            dc->PushLayer(D2D1::LayerParameters1(D2D1::RectF(art.left, art.bottom + 1, art.right, art.bottom + 11), nullptr, D2D1_ANTIALIAS_MODE_PER_PRIMITIVE, D2D1::IdentityMatrix(), 1, mask), nullptr);
-            dc->SetTransform(D2D1::Matrix3x2F::Scale(1, -1, { 0, art.bottom + 0.5f }) * old);
-            DrawArt(dc, br, art, 4);
-            dc->SetTransform(old);
-            dc->PopLayer();
-            mask->Release();
-        }
-        if (gs) gs->Release();
-        br->SetColor(D2D1::ColorF(1, 1, 1, 0.25f));  // moldura fina da capa, como os ícones do 10.5
-        dc->DrawRoundedRectangle(D2D1::RoundedRect(D2D1::RectF(art.left + 0.5f, art.top + 0.5f, art.right - 0.5f, art.bottom - 0.5f), 3.5f, 3.5f), br, 1);
+// ---- system volume (the slider in the open island; the wheel over the island changes it too)
+float g_sysVol = -1; bool g_sysMute; double g_sysVolAt;
+D2D1_RECT_F g_volTrack{};
+IAudioEndpointVolume* EpVol() {
+    IMMDeviceEnumerator* en = nullptr; IMMDevice* dev = nullptr; IAudioEndpointVolume* v = nullptr;
+    if (SUCCEEDED(CoCreateInstance(__uuidof(MMDeviceEnumerator), nullptr, CLSCTX_ALL, IID_PPV_ARGS(&en)))) {
+        if (SUCCEEDED(en->GetDefaultAudioEndpoint(eRender, eConsole, &dev))) { dev->Activate(__uuidof(IAudioEndpointVolume), CLSCTX_ALL, nullptr, (void**)&v); dev->Release(); }
+        en->Release();
     }
-    AddHit(H_ART, art);
+    return v;
+}
+void ReadVol(bool force = false) {
+    if (!force && anim::Now() - g_sysVolAt < 400) return;
+    g_sysVolAt = anim::Now();
+    if (auto* v = EpVol()) { float f = 0; BOOL m = FALSE; v->GetMasterVolumeLevelScalar(&f); v->GetMute(&m); g_sysVol = f; g_sysMute = m != FALSE; v->Release(); }
+}
+void SetVol(float f) {
+    f = std::clamp(f, 0.f, 1.f);
+    if (auto* v = EpVol()) { v->SetMasterVolumeLevelScalar(f, nullptr); if (f > 0.001f) v->SetMute(FALSE, nullptr); v->Release(); }
+    g_sysVol = f; g_sysMute = false; g_sysVolAt = anim::Now();
+}
+
+// The player, redrawn for the bigger open island: a large cover with a soft glow of its colour, title and artist,
+// the timeline, the transport row with a round play button, and the system volume underneath
+void DrawHome(ID2D1DeviceContext* dc, ID2D1SolidColorBrush* br, D2D1_RECT_F b, float y0) {
+    const bool big = b.right - b.left > 420;
+    const float L = b.left + (big ? 20 : 14), R = b.right - (big ? 22 : 16);
+    const float A = big ? 150.f : 40.f;
+    D2D1_RECT_F art = D2D1::RectF(L, y0 + 4, L + A, y0 + 4 + A);
     bool has = g_m.has;
-    Text(dc, br, has ? g_m.title : Tr(L"Nada tocando"), g_tfTitle, D2D1::RectF(art.right + 9, y0 + 3, R - 24, y0 + 20), WHITE);
-    if (has) Text(dc, br, g_m.artist, g_tfSub, D2D1::RectF(art.right + 9, y0 + 20, R - 24, y0 + 35), GRAY);
-    if (has) DrawBars(dc, br, D2D1::RectF(R - 16, y0 + 6, R, y0 + 18));
-    float ty = y0 + 54;
+    if (big && has) {  // glow of the cover's colour behind it
+        for (int i = 4; i >= 1; i--) {
+            float e = i * 4.f;
+            br->SetColor(D2D1::ColorF(g_m.tint.r, g_m.tint.g, g_m.tint.b, 0.05f));
+            dc->FillRoundedRectangle(D2D1::RoundedRect(D2D1::RectF(art.left - e, art.top - e * 0.5f, art.right + e, art.bottom + e), 18 + e, 18 + e), br);
+        }
+    }
+    DrawArt(dc, br, art, big ? 18.f : (g_theme == TH_LEOPARD ? 4.f : 9.f));
+    if (big) liquid::Rim(dc, art, 18, true, 0.5f, 0);
+    AddHit(H_ART, art);
+    const float X = art.right + (big ? 22 : 9);
+    if (!big) {  // narrow (notch theme fallback): title on the right of the small cover
+        Text(dc, br, has ? g_m.title : Tr(L"Nada tocando"), g_tfTitle, D2D1::RectF(X, y0 + 3, R - 24, y0 + 20), WHITE);
+        if (has) Text(dc, br, g_m.artist, g_tfSub, D2D1::RectF(X, y0 + 20, R - 24, y0 + 35), GRAY);
+    } else {
+        Text(dc, br, has ? g_m.title : Tr(L"Nada tocando"), g_tfHomeT, D2D1::RectF(X, y0 + 8, R - 30, y0 + 32), WHITE);
+        if (has) Text(dc, br, g_m.artist, g_tfHomeA, D2D1::RectF(X, y0 + 33, R - 30, y0 + 52), GRAY);
+    }
+    if (has) DrawBars(dc, br, big ? D2D1::RectF(R - 20, y0 + 12, R, y0 + 28) : D2D1::RectF(R - 16, y0 + 6, R, y0 + 18));
+    // timeline
+    float ty = big ? y0 + 76 : y0 + 54;
     double pos = 0, len = g_m.len;
     bool tl = has && len > 1;
     if (tl) pos = std::clamp(g_m.pos + (g_m.playing ? (anim::Now() - g_m.at) / 1000.0 : 0), 0.0, len);
-    D2D1_RECT_F tr = D2D1::RectF(L + 36, ty - 1.5f, R - 38, ty + 1.5f);
-    Text(dc, br, tl ? ClockFloor(pos) : L"", g_tfSmall, D2D1::RectF(L, ty - 7, tr.left - 4, ty + 7), WHITE);
-    Text(dc, br, tl ? L"-" + ClockFloor(len - pos) : L"", g_tfSmallR, D2D1::RectF(tr.right + 4, ty - 7, R, ty + 7), g_theme == TH_LEOPARD ? Accent() : g_m.tint);
-    DrawProgressT(dc, br, Hover(H_SEEK) ? D2D1::RectF(tr.left, ty - 2.5f, tr.right, ty + 2.5f) : tr, tl ? (float)(pos / len) : 0);
-    if (tl) AddHit(H_SEEK, D2D1::RectF(tr.left, ty - 7, tr.right, ty + 7));
-    float cy = y0 + 82, cx = (b.left + b.right) / 2;
+    float tL = big ? X : L + 36, tR = big ? R : R - 38;
+    D2D1_RECT_F tr = D2D1::RectF(tL, ty - 2, tR, ty + 2);
+    if (big) {
+        DrawProgressT(dc, br, Hover(H_SEEK) ? D2D1::RectF(tr.left, ty - 3.5f, tr.right, ty + 3.5f) : tr, tl ? (float)(pos / len) : 0);
+        Text(dc, br, tl ? ClockFloor(pos) : L"", g_tfSmall, D2D1::RectF(tL, ty + 6, tL + 60, ty + 20), GRAY);
+        Text(dc, br, tl ? L"-" + ClockFloor(len - pos) : L"", g_tfSmallR, D2D1::RectF(tR - 60, ty + 6, tR, ty + 20), g_theme == TH_LEOPARD ? Accent() : g_m.tint);
+    } else {
+        Text(dc, br, tl ? ClockFloor(pos) : L"", g_tfSmall, D2D1::RectF(L, ty - 7, tr.left - 4, ty + 7), WHITE);
+        Text(dc, br, tl ? L"-" + ClockFloor(len - pos) : L"", g_tfSmallR, D2D1::RectF(tr.right + 4, ty - 7, R, ty + 7), g_theme == TH_LEOPARD ? Accent() : g_m.tint);
+        DrawProgressT(dc, br, Hover(H_SEEK) ? D2D1::RectF(tr.left, ty - 2.5f, tr.right, ty + 2.5f) : tr, tl ? (float)(pos / len) : 0);
+    }
+    if (tl) AddHit(H_SEEK, D2D1::RectF(tr.left, ty - 8, tr.right, ty + 8));
+    // transport
+    float cy = big ? y0 + 124 : y0 + 82, cx = big ? (X + R) / 2 : (b.left + b.right) / 2, step = big ? 58.f : 50.f;
     D2D1_COLOR_F ink = has ? WHITE : GRAY2;
-    struct B { HitId id; float x; } bs[] = { { H_SHUF, cx - 100 }, { H_PREV, cx - 50 }, { H_PLAY, cx }, { H_NEXT, cx + 50 }, { H_OUT, cx + 100 } };
+    struct B { HitId id; float x; } bs[] = { { H_SHUF, cx - 2 * step }, { H_PREV, cx - step }, { H_PLAY, cx }, { H_NEXT, cx + step }, { H_OUT, cx + 2 * step } };
     for (auto& bt : bs) {
-        float s = bt.id == H_PLAY ? 32.f : 28.f;
+        float s = bt.id == H_PLAY ? (big ? 46.f : 32.f) : (big ? 34.f : 28.f);
         D2D1_RECT_F r = Around(bt.x, cy, s, s);
         bool live = has || bt.id == H_OUT;
-        if (live && (Hover(bt.id) || g_pressHit == bt.id)) Chip(dc, br, r, s / 2, g_pressHit == bt.id ? 2.f : 1.f);
+        bool pressed = g_pressHit == bt.id;
+        if (big && bt.id == H_PLAY) {  // round white play button with the glyph in the dark (the iOS 26 player)
+            float sc2 = pressed ? 0.92f : Hover(bt.id) ? 1.05f : 1.f;
+            br->SetColor(D2D1::ColorF(1, 1, 1, has ? 0.95f : 0.35f));
+            dc->FillEllipse(D2D1::Ellipse({ bt.x, cy }, s / 2 * sc2, s / 2 * sc2), br);
+            D2D1_COLOR_F d = D2D1::ColorF(0.08f, 0.08f, 0.10f, 1);
+            if (g_m.playing) Sym(dc, br, L"pause.fill", Around(bt.x, cy, 15, 19), d);
+            else Sym(dc, br, L"play.fill", Around(bt.x + 2, cy, 17, 19), d);
+            if (live) AddHit(bt.id, r);
+            continue;
+        }
+        if (live && (Hover(bt.id) || pressed)) Chip(dc, br, r, s / 2, pressed ? 2.f : 1.f);
         switch (bt.id) {
-        case H_SHUF: Glyph(dc, br, 0xE8B1, g_tfIconS, r, has && g_m.shuffle ? (g_theme == TH_SEQUOIA ? g_m.tint : Accent()) : has && g_m.canShuffle ? WHITE : GRAY2); break;
-        case H_OUT:  Glyph(dc, br, 0xE7F4, g_tfIconS, r, WHITE); break;  // a saída de som (o menu Som)
+        case H_SHUF: Glyph(dc, br, 0xE8B1, big ? g_tfIcon : g_tfIconS, r, has && g_m.shuffle ? (g_theme == TH_SEQUOIA ? g_m.tint : Accent()) : has && g_m.canShuffle ? WHITE : GRAY2); break;
+        case H_OUT:  Glyph(dc, br, 0xE7F4, big ? g_tfIcon : g_tfIconS, r, WHITE); break;  // a saída de som (o menu Som)
         case H_PLAY:
             if (g_m.playing) Sym(dc, br, L"pause.fill", Around(bt.x, cy, 13, 17), ink);
             else Sym(dc, br, L"play.fill", Around(bt.x + 1.5f, cy, 15, 17), ink);
             break;
         default: {
-            D2D1_RECT_F sr = Around(bt.x, cy, 21, 12);
+            D2D1_RECT_F sr = Around(bt.x, cy, big ? 25.f : 21.f, big ? 14.f : 12.f);
             if (bt.id == H_PREV) {  // não há "backward.fill" no pacote: o "forward.fill" espelhado
                 D2D1_MATRIX_3X2_F old; dc->GetTransform(&old);
                 dc->SetTransform(D2D1::Matrix3x2F::Scale(-1, 1, { bt.x, cy }) * old);
@@ -1145,6 +1222,24 @@ void DrawHome(ID2D1DeviceContext* dc, ID2D1SolidColorBrush* br, D2D1_RECT_F b, f
         }
         if (live) AddHit(bt.id, r);
     }
+    if (!big) return;
+    // volume
+    ReadVol();
+    float vy = y0 + 172;
+    float v = g_sysMute ? 0.f : std::max(0.f, g_sysVol);
+    Sym(dc, br, v < 0.001f ? L"speaker.slash.fill" : L"speaker.fill", Around(X + 8, vy, 13, 13), GRAY);
+    Sym(dc, br, L"speaker.wave.3.fill", Around(R - 10, vy, 19, 14), GRAY);
+    g_volTrack = D2D1::RectF(X + 26, vy - 3, R - 28, vy + 3);
+    bool hv = Hover(H_VOL) || g_pressHit == H_VOL;
+    D2D1_RECT_F vt = hv ? D2D1::RectF(g_volTrack.left, vy - 4.5f, g_volTrack.right, vy + 4.5f) : g_volTrack;
+    DrawProgress(dc, br, vt, v, D2D1::ColorF(1, 1, 1, 0.92f));
+    if (hv) {  // the thumb: a small glass lens on the track (zakisheriff's GlassSlider)
+        float kx = vt.left + v * (vt.right - vt.left);
+        br->SetColor(D2D1::ColorF(1, 1, 1, 0.97f));
+        dc->FillEllipse(D2D1::Ellipse({ kx, vy }, 8, 8), br);
+        liquid::Rim(dc, D2D1::RectF(kx - 8, vy - 8, kx + 8, vy + 8), 8, false, 0.8f, 1);
+    }
+    AddHit(H_VOL, D2D1::RectF(g_volTrack.left - 4, vy - 10, g_volTrack.right + 4, vy + 10));
 }
 
 void Ring(ID2D1DeviceContext* dc, ID2D1SolidColorBrush* br, D2D1_POINT_2F c, float rad, float f, float stroke) {
@@ -1231,10 +1326,15 @@ void DrawClip(ID2D1DeviceContext* dc, ID2D1SolidColorBrush* br, D2D1_RECT_F b, f
         Text(dc, br, Tr(L"O que você copiar aparece aqui"), g_tfSmallC, D2D1::RectF(L, y0 + 46, R, y0 + 62), GRAY);
         return;
     }
-    float rowH = 23, y = y0;
-    for (int i = 0; i < (int)g_clips.size() && i < 4; i++, y += rowH) {
-        D2D1_RECT_F r = D2D1::RectF(L, y, R - (i == 0 ? 44 : 0), y + rowH - 2);
-        if (Hover(H_CLIP, i)) Chip(dc, br, r, ChipR(rowH - 2) * 0.8f, 1);
+    // history: two columns of glass cards (up to 10 entries) when the island is wide; a list when it is narrow
+    const bool grid = R - L > 400;
+    const int cols = grid ? 2 : 1, maxN = grid ? 10 : 4;
+    float rowH = grid ? 34.f : 23.f, gap = grid ? 8.f : 0.f, cw = (R - L - (cols - 1) * gap) / cols, y = y0 + (grid ? 4 : 0);
+    for (int i = 0; i < (int)g_clips.size() && i < maxN; i++) {
+        float x = L + (i % cols) * (cw + gap), yy = y + (i / cols) * (rowH + (grid ? 6 : 0));
+        D2D1_RECT_F r = D2D1::RectF(x, yy, x + cw - (!grid && i == 0 ? 44 : 0), yy + rowH - 2);
+        if (grid) Chip(dc, br, r, 12, Hover(H_CLIP, i) ? (g_pressHit == H_CLIP ? 2.f : 1.f) : 0.f);
+        else if (Hover(H_CLIP, i)) Chip(dc, br, r, ChipR(rowH - 2) * 0.8f, 1);
         std::wstring s = g_clips[i];
         for (auto& c : s) if (c == L'\r' || c == L'\n' || c == L'\t') c = L' ';
         bool flash = g_flashClip == i && anim::Now() - g_flashAt < 1200;
@@ -1242,7 +1342,8 @@ void DrawClip(ID2D1DeviceContext* dc, ID2D1SolidColorBrush* br, D2D1_RECT_F b, f
         Text(dc, br, flash ? Tr(L"Copiado") : s, g_tfSub, D2D1::RectF(r.left + 27, r.top, r.right - 6, r.bottom), flash ? GREEN : WHITE);
         AddHit(H_CLIP, r, i);
     }
-    D2D1_RECT_F cl = D2D1::RectF(R - 42, y0, R, y0 + 21);
+    D2D1_RECT_F cl = grid ? D2D1::RectF(R - 72, b.bottom - 32, R, b.bottom - 10) : D2D1::RectF(R - 42, y0, R, y0 + 21);
+    if (grid) Chip(dc, br, cl, 11, Hover(H_CLIPCLR) ? 1.f : 0.f);
     Text(dc, br, Tr(L"Limpar"), g_tfSmallC, cl, Hover(H_CLIPCLR) ? WHITE : GRAY);
     AddHit(H_CLIPCLR, cl);
 }
@@ -1508,6 +1609,21 @@ void Paint() {
     float rad = std::min({ std::max(0.f, g_rb.x), (p.bottom - p.top) / 2, (p.right - p.left) / 2 });
     const bool pill = !Notch();
     const bool leoNotch = Notch() && g_theme == TH_LEOPARD;
+    // Liquid Glass body: the backdrop window under the island takes the shape's rect every frame (blur and the lens
+    // refraction of the screen behind, like zakisheriff/Liquid-Glass); the tint is ilha_opacidade, darker when open
+    const bool glassBody = pill && Glassy() && g_glass && alpha > 0.01f;
+    if (g_back) {
+        if (glassBody) {
+            RECT wr; GetWindowRect(g_wnd, &wr);
+            int gx = wr.left + (int)std::lround(p.left * sc), gy = wr.top + (int)std::lround(p.top * sc);
+            int gw = std::max(1L, std::lround((p.right - p.left) * sc)), gh = std::max(1L, std::lround((p.bottom - p.top) * sc));
+            SetWindowPos(g_back, g_wnd, gx, gy, gw, gh, SWP_NOACTIVATE | SWP_SHOWWINDOW);
+            float op = std::clamp((float)_wtof(shell::Setting(L"ilha_opacidade", L"45").c_str()) / 100.f, 0.f, 1.f);
+            float grow = std::clamp((p.bottom - p.top - PILL_H) / 60.f, 0.f, 1.f);
+            backdrop::Set(g_back, (float)gw, (float)gh, rad * sc, D2D1::ColorF(0.05f, 0.05f, 0.07f, std::min(1.f, op + 0.32f * grow)));
+            backdrop::Fade(g_back, alpha, 1, gw / 2.f, gh / 2.f);
+        } else if (IsWindowVisible(g_back)) ShowWindow(g_back, SW_HIDE);
+    }
     if (leoNotch && alpha > 0.01f && geo) {
         // sombra do Leopard embaixo do painel (os menus e HUDs do 10.5 têm sombra larga e macia)
         for (int i = 5; i >= 1; i--) {
@@ -1533,10 +1649,10 @@ void Paint() {
     // o corpo: o notch é sempre preto; a pílula muda com o tema
     D2D1_COLOR_F fill = D2D1::ColorF(0, 0, 0, 1);
     if (pill && Glassy()) {
-        // Liquid Glass: smoked glass instead of a black slab, the menu bar's blurred wallpaper shows through. More
-        // tint when it grows (the open card and the notifications carry text over any wallpaper)
+        // Liquid Glass: the glass window underneath does the body (glassBody); without it, smoked glass drawn here
         float grow = std::clamp((p.bottom - p.top - PILL_H) / 40.f, 0.f, 1.f);
-        fill = D2D1::ColorF(0.07f, 0.07f, 0.085f, 0.66f + 0.20f * grow);
+        float op = std::clamp((float)_wtof(shell::Setting(L"ilha_opacidade", L"45").c_str()) / 100.f, 0.f, 1.f);
+        fill = glassBody ? D2D1::ColorF(0, 0, 0, 0) : D2D1::ColorF(0.07f, 0.07f, 0.085f, std::min(1.f, 0.35f + op * 0.6f + 0.20f * grow));
     }
     if (pill && g_theme == TH_LEOPARD) fill = D2D1::ColorF(0.10f, 0.10f, 0.11f, 0.90f);
     br->SetColor(fill);
@@ -1666,7 +1782,7 @@ void Frame() {
         g_running = false;
         ui::FrameClock(g_wnd, WM_IL_FRAME, false);
         if (g_mode == M_HIDDEN) {
-            ShowWindow(g_wnd, SW_HIDE);
+            ShowWindow(g_wnd, SW_HIDE); if (g_back) ShowWindow(g_back, SW_HIDE);
             g_shown = false;
             g_rgn = {};
         }
@@ -1694,7 +1810,9 @@ void Activate(const std::wstring& aumid) {  // traz o app que está tocando
 }
 
 void Close() { g_openOn = false; KillTimer(g_wnd, TM_LEAVE); Update(); }
+void LoadClipHistory();
 void SetTab(int t) {
+    if (t == TAB_CLIP) LoadClipHistory();
     if (t == g_tab) return;
     g_tabDir = t > g_tab ? 1 : -1;
     g_tab = (Tab)t;
@@ -1717,6 +1835,7 @@ void ClickHit(const Hit& h, D2D1_POINT_2F p) {
         if (menubar::SoundIcon(&r)) som::Toggle(r); else shell::OpenSettings(L"som");
         break;
     }
+    case H_VOL: break;  // set while pressing/dragging
     case H_SEEK: {
         float f = std::clamp((p.x - h.r.left) / (h.r.right - h.r.left), 0.f, 1.f);
         g_m.pos = f * g_m.len; g_m.at = anim::Now();
@@ -1752,6 +1871,8 @@ void ClickHit(const Hit& h, D2D1_POINT_2F p) {
 }
 
 LRESULT CALLBACK Proc(HWND h, UINT m, WPARAM w, LPARAM l) {
+    static const UINT msgOpen = RegisterWindowMessageW(L"ShellIlhaAbrir");  // open/close from outside (wParam = tab); tests and shortcuts
+    if (m == msgOpen && msgOpen) { g_openOn = !g_openOn; if ((int)w >= 0 && (int)w < TAB_N) g_tab = (Tab)w; if (g_tab == TAB_CLIP) LoadClipHistory(); Update(); return 0; }
     switch (m) {
     case WM_PAINT: { PAINTSTRUCT ps; BeginPaint(h, &ps); EndPaint(h, &ps); Paint(); return 0; }
     case WM_MOUSEACTIVATE: return MA_NOACTIVATE;
@@ -1797,6 +1918,18 @@ LRESULT CALLBACK Proc(HWND h, UINT m, WPARAM w, LPARAM l) {
         return 0;
     }
     case WM_IL_CAPS: SetTimer(h, TM_CAPS, 40, nullptr); return 0;  // o Windows ainda não trocou o estado da tecla
+    case WM_IL_HIST: {
+        std::unique_ptr<std::vector<std::wstring>> v((std::vector<std::wstring>*)l);
+        Log(L"ilha: histórico da área de transferência do Windows: %zu itens", v->size());
+        for (auto it = v->begin(); it != v->end(); ++it) {  // newest first, after what was copied in this session
+            if (it->empty() || std::find(g_clips.begin(), g_clips.end(), *it) != g_clips.end()) continue;
+            g_clips.push_back(*it);
+        }
+        // keep the order of the history: entries that came from it go after the ones copied in this session
+        while (g_clips.size() > 12) g_clips.pop_back();
+        if (g_shown && !g_running) Paint();
+        return 0;
+    }
     case WM_CLIPBOARDUPDATE:
         if (g_selfCopy) { g_selfCopy = false; return 0; }
         if (g_on) {
@@ -1875,12 +2008,24 @@ LRESULT CALLBACK Proc(HWND h, UINT m, WPARAM w, LPARAM l) {
             if (!g_running) Paint();
             return 0;
         }
+        if (g_pressHit == H_VOL && (w & MK_LBUTTON)) {  // dragging the volume
+            SetVol((p.x - g_volTrack.left) / std::max(1.f, g_volTrack.right - g_volTrack.left));
+            if (!g_running) Paint();
+            return 0;
+        }
         const Hit* ht = HitAt(p);
         HitId id = ht ? ht->id : H_NONE; int arg = ht ? ht->arg : -1;
         if (id == H_ART) id = H_NONE;
         if (id != g_hoverHit || arg != g_hoverArg) { g_hoverHit = id; g_hoverArg = arg; if (!g_running) Paint(); }
         return 0;
     }
+    case WM_MOUSEWHEEL:  // the wheel over the open island: volume, 2 % a notch
+        if (g_mode == M_OPEN) {
+            ReadVol(true);
+            SetVol(std::max(0.f, g_sysVol) + GET_WHEEL_DELTA_WPARAM(w) / 120.f * 0.02f);
+            if (!g_running) Paint();
+        }
+        return 0;
     case WM_MOUSELEAVE:
         g_hoverIn = false;
         KillTimer(h, TM_HOVER);
@@ -1892,6 +2037,7 @@ LRESULT CALLBACK Proc(HWND h, UINT m, WPARAM w, LPARAM l) {
         const Hit* ht = g_mode == M_OPEN ? HitAt(Pt(l)) : nullptr;
         g_pressHit = ht ? ht->id : H_NONE; g_pressArg = ht ? ht->arg : -1;
         g_pressPt = { GET_X_LPARAM(l), GET_Y_LPARAM(l) };
+        if (g_pressHit == H_VOL) SetVol((Pt(l).x - g_volTrack.left) / std::max(1.f, g_volTrack.right - g_volTrack.left));
         if (g_pressHit != H_NONE) { SetCapture(h); if (!g_running) Paint(); }
         return 0;
     }
@@ -1952,8 +2098,10 @@ IDWriteTextFormat* Fmt(float size, DWRITE_FONT_WEIGHT wt, DWRITE_TEXT_ALIGNMENT 
 
 // fontes nas proporções do Atoll (título 12,5, artista 11, tempo 10,5); recriadas ao trocar de tema (Leopard: Lucida)
 void MakeFonts() {
-    for (auto** tf : { &g_tfTitle, &g_tfSub, &g_tfSmall, &g_tfSmallR, &g_tfSmallC, &g_tfWing, &g_tfWingR, &g_tfBig, &g_tfVal, &g_tfChip, &g_tfIcon, &g_tfIconS, &g_tfIconL })
+    for (auto** tf : { &g_tfTitle, &g_tfSub, &g_tfSmall, &g_tfSmallR, &g_tfSmallC, &g_tfWing, &g_tfWingR, &g_tfBig, &g_tfVal, &g_tfChip, &g_tfIcon, &g_tfIconS, &g_tfIconL, &g_tfHomeT, &g_tfHomeA })
         if (*tf) { (*tf)->Release(); *tf = nullptr; }
+    g_tfHomeT = Fmt(16, DWRITE_FONT_WEIGHT_SEMI_BOLD);
+    g_tfHomeA = Fmt(13, DWRITE_FONT_WEIGHT_NORMAL);
     g_tfTitle = Fmt(12.5f, DWRITE_FONT_WEIGHT_SEMI_BOLD);
     g_tfSub = Fmt(11, DWRITE_FONT_WEIGHT_NORMAL);
     g_tfSmall = Fmt(10.5f, DWRITE_FONT_WEIGHT_NORMAL);
@@ -1982,6 +2130,14 @@ bool ilha::Create(HINSTANCE hi) {
                             WS_POPUP, 0, 0, 10, 10, nullptr, nullptr, hi, nullptr);
     if (!g_wnd) return false;
     g_s.hwnd = g_wnd;
+    {   // the glass under the pill: no clicks (WS_EX_TRANSPARENT), always right under the island
+        WNDCLASSW gc{}; gc.lpfnWndProc = DefWindowProcW; gc.hInstance = hi; gc.lpszClassName = L"ShellIlhaVidro";
+        RegisterClassW(&gc);
+        g_back = CreateWindowExW(WS_EX_TOPMOST | WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE | WS_EX_TRANSPARENT | WS_EX_NOREDIRECTIONBITMAP, gc.lpszClassName, L"",
+                                 WS_POPUP, 0, 0, 10, 10, nullptr, nullptr, hi, nullptr);
+        g_glass = g_back && backdrop::Attach(g_back);
+        if (!g_glass && g_back) { DestroyWindow(g_back); g_back = nullptr; }
+    }
     g_theme = ThemeNow();
     MakeFonts();
     SYSTEM_POWER_STATUS ps{};
@@ -2018,7 +2174,7 @@ void ilha::Reload() {
     if (g_on != was || ns != g_style) Log(L"ilha: %ls (%ls)", g_on ? L"ligada" : L"desligada", st.c_str());
     if (ns != g_style && g_shown) {  // trocou de estilo: some e volta no outro formato
         g_style = ns;
-        ShowWindow(g_wnd, SW_HIDE); g_shown = false; g_rgn = {}; g_mode = M_HIDDEN;
+        ShowWindow(g_wnd, SW_HIDE); if (g_back) ShowWindow(g_back, SW_HIDE); g_shown = false; g_rgn = {}; g_mode = M_HIDDEN;
     }
     g_style = ns;
     if (!g_volOn && g_hud == HUD_VOL) g_hudOn = false;
@@ -2053,7 +2209,7 @@ bool FullOnPrimary() {
         wchar_t cls[64] = {}; GetClassNameW(h, cls, 64);
         if (!wcscmp(cls, L"Shell_TrayWnd") || !wcscmp(cls, L"Shell_SecondaryTrayWnd")) continue;
         if (mesa::IsDeskClass(cls)) return false;  // chegou na mesa: nada em tela cheia
-        bool covers = r.left <= m.left && r.top <= m.top && r.right >= m.right && r.bottom >= m.bottom;
+        bool covers = r.left <= m.left + 2 && r.top <= m.top + 2 && r.right >= m.right - 2 && r.bottom >= m.bottom - 2;  // Chromium full screen is 1 px short (auto-hide taskbar)
         if (covers) return !(IsZoomed(h) && (st & WS_CAPTION) == WS_CAPTION);  // maximizada com barra de título não é tela cheia
         LONG area = (x.right - x.left) * (x.bottom - x.top);
         if (area < monArea / 4) continue;  // aviso pequeno por cima (dica, OSD, notificação)
@@ -2072,7 +2228,7 @@ void ApplyFull(bool on) {
         // jogo da tela cheia (o Shell já viu isso com o Fortnite e os banners)
         KillTimer(g_wnd, TM_EQ); KillTimer(g_wnd, TM_HOVER); KillTimer(g_wnd, TM_LEAVE);
         if (g_running) { g_running = false; ui::FrameClock(g_wnd, WM_IL_FRAME, false); }
-        ShowWindow(g_wnd, SW_HIDE);
+        ShowWindow(g_wnd, SW_HIDE); if (g_back) ShowWindow(g_back, SW_HIDE);
         g_shown = false; g_rgn = {};
         g_mode = g_prev = M_HIDDEN;
         g_openOn = g_hoverIn = false;

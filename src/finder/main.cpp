@@ -1792,9 +1792,22 @@ void SpringLoad(const std::wstring& path) {
     Invalidate(); UpdateWindow(g_hwnd);
 }
 
+static int HitTab(D2D1_POINT_2F p);
+static void SwitchTab(int i);
+static int g_dropTab = -1;  // tab highlighted while dragging files over it
 DropSpot DropSpotAt(POINT px) {
     DropSpot d;
     D2D1_POINT_2F p = ToDip(px.x, px.y);
+    if (int t = HitTab(p); t >= 0) {
+        // over a tab: the files go into that tab's folder; held there 0.7 s, the tab comes to the front (Mac)
+        static int lastTab = -1; static DWORD since = 0;
+        if (t != lastTab) { lastTab = t; since = GetTickCount(); }
+        else if (t != g_curTab && GetTickCount() - since > 700) { SwitchTab(t); since = GetTickCount(); }
+        d.kind = DropSpot::FOLDER; d.tab = t;
+        d.path = t == g_curTab ? g_folder : g_tabs[t].folder;
+        if (d.path.empty() || (g_ownDrag && t == g_curTab)) d.kind = DropSpot::NONE;
+        return d;
+    }
     int row = HitSideRow(p);
     if (row >= 0 && !g_side[row].header) {
         const SideEntry& s = g_side[row];
@@ -1820,6 +1833,7 @@ DropSpot DropSpotAt(POINT px) {
 }
 
 void SetDropFeedback(const DropSpot& s) {
+    if (s.tab != g_dropTab) { g_dropTab = s.tab; Invalidate(); }
     int insert = s.kind == DropSpot::SIDEBAR_INSERT ? s.index : -1;
     if (s.item != g_dropHi || s.row != g_dropSideRow || insert != g_sideInsert) {
         g_dropHi = s.item; g_dropSideRow = s.row; g_sideInsert = insert;
@@ -5584,7 +5598,7 @@ static D2D1_RECT_F TabRect(int i) {
     float x = Lay::SIDEBAR_W + i * w;
     return { x, Lay::TOOLBAR_H, x + w, Lay::TOOLBAR_H + TAB_H };
 }
-static D2D1_RECT_F TabCloseRect(int i) { auto r = TabRect(i); return { r.left + 8, r.top + 7, r.left + 24, r.top + 23 }; }
+static D2D1_RECT_F TabCloseRect(int i) { auto r = TabRect(i); return { r.left + 12, r.top + 7, r.left + 28, r.top + 23 }; }
 static D2D1_RECT_F TabPlusRect() { auto s = ClientDip(); return { s.width - 34, Lay::TOOLBAR_H, s.width, Lay::TOOLBAR_H + TAB_H }; }
 static int g_hoverTab = -1;
 
@@ -5598,34 +5612,60 @@ static void DrawTabBar(ID2D1DeviceContext* dc, const Palette& pal, ID2D1SolidCol
     if (TabBarH() == 0) return;
     auto s = ClientDip();
     D2D1_RECT_F bar{ Lay::SIDEBAR_W, Lay::TOOLBAR_H, s.width, Lay::TOOLBAR_H + TAB_H };
-    br->SetColor(g_dark ? D2D1::ColorF(0.10f, 0.10f, 0.11f) : D2D1::ColorF(0.88f, 0.88f, 0.89f));  // abas de fundo mais escuras
+    // macOS 26 tab bar: a recessed track with the tabs as capsules; the current one is a raised glass capsule
+    br->SetColor(pal.bar);
     dc->FillRectangle(bar, br);
+    D2D1_RECT_F track = D2D1::RectF(bar.left + 6, bar.top + 3, TabPlusRect().left - 2, bar.bottom - 4);
+    float tr = (track.bottom - track.top) / 2;
+    br->SetColor(g_dark ? D2D1::ColorF(0, 0, 0, 0.28f) : D2D1::ColorF(0, 0, 0, 0.06f));
+    dc->FillRoundedRectangle(D2D1::RoundedRect(track, tr, tr), br);
     for (int i = 0; i < (int)g_tabs.size(); i++) {
-        auto r = TabRect(i);
-        bool cur = i == g_curTab;
-        if (cur) { br->SetColor(pal.bar); dc->FillRectangle(r, br); }
-        else if (i == g_hoverTab) { br->SetColor(pal.hover); dc->FillRectangle(r, br); }
-        if (i > 0 && !cur && i - 1 != g_curTab) {  // divisória entre abas de fundo
-            br->SetColor(pal.line);
-            dc->DrawLine({ r.left + 0.5f, r.top + 7 }, { r.left + 0.5f, r.bottom - 7 }, br, 1);
+        auto r0 = TabRect(i);
+        D2D1_RECT_F r = D2D1::RectF(std::max(r0.left + 2, track.left + 2), track.top + 2, std::min(r0.right - 2, track.right - 2), track.bottom - 2);
+        float rr = (r.bottom - r.top) / 2;
+        bool cur = i == g_curTab, hov = i == g_hoverTab, drop = i == g_dropTab;
+        if (cur) {
+            br->SetColor(D2D1::ColorF(0, 0, 0, g_dark ? 0.35f : 0.10f));  // soft shadow under the raised tab
+            dc->FillRoundedRectangle(D2D1::RoundedRect(D2D1::RectF(r.left, r.top + 1, r.right, r.bottom + 1.2f), rr, rr), br);
+            br->SetColor(g_dark ? D2D1::ColorF(0.30f, 0.30f, 0.32f, 1) : D2D1::ColorF(1, 1, 1, 1));
+            dc->FillRoundedRectangle(D2D1::RoundedRect(r, rr, rr), br);
+            br->SetColor(D2D1::ColorF(1, 1, 1, g_dark ? 0.14f : 0.9f));  // the glass rim on top
+            dc->DrawRoundedRectangle(D2D1::RoundedRect(D2D1::RectF(r.left + 0.5f, r.top + 0.5f, r.right - 0.5f, r.bottom - 0.5f), rr - 0.5f, rr - 0.5f), br, 1);
+        } else if (hov) {
+            br->SetColor(g_dark ? D2D1::ColorF(1, 1, 1, 0.07f) : D2D1::ColorF(0, 0, 0, 0.05f));
+            dc->FillRoundedRectangle(D2D1::RoundedRect(r, rr, rr), br);
+        }
+        if (drop) {  // files dragged over it: accent ring
+            br->SetColor(D2D1::ColorF(pal.accent.r, pal.accent.g, pal.accent.b, 0.22f));
+            dc->FillRoundedRectangle(D2D1::RoundedRect(r, rr, rr), br);
+            br->SetColor(pal.accent);
+            dc->DrawRoundedRectangle(D2D1::RoundedRect(D2D1::RectF(r.left + 1, r.top + 1, r.right - 1, r.bottom - 1), rr - 1, rr - 1), br, 2);
+        }
+        if (!cur && !hov && !drop && i + 1 < (int)g_tabs.size() && i + 1 != g_curTab && i + 1 != g_hoverTab) {
+            br->SetColor(pal.line);  // thin divider between two background tabs
+            dc->DrawLine({ r0.right + 0.5f, r.top + 5 }, { r0.right + 0.5f, r.bottom - 5 }, br, 1);
         }
         std::wstring title = TabTitle(i);
         br->SetColor(cur ? pal.text : pal.text2);
-        dc->DrawTextW(title.c_str(), (UINT32)title.size(), g_tfQlButton, D2D1::RectF(r.left + 28, r.top, r.right - 28, r.bottom), br, D2D1_DRAW_TEXT_OPTIONS_CLIP);
-        if (i == g_hoverTab) {  // ✕ ao passar o mouse
+        dc->DrawTextW(title.c_str(), (UINT32)title.size(), g_tfQlButton, D2D1::RectF(r.left + 26, r.top, r.right - 26, r.bottom), br, D2D1_DRAW_TEXT_OPTIONS_CLIP);
+        if (hov) {  // ✕ in a small circle on hover
             auto c = TabCloseRect(i);
-            float cx = (c.left + c.right) / 2, cy = (c.top + c.bottom) / 2;
+            float cx = (c.left + c.right) / 2, cy = (r.top + r.bottom) / 2;
+            br->SetColor(g_dark ? D2D1::ColorF(1, 1, 1, 0.10f) : D2D1::ColorF(0, 0, 0, 0.07f));
+            dc->FillEllipse(D2D1::Ellipse({ cx, cy }, 8, 8), br);
             br->SetColor(pal.text2);
-            Line(dc, br, cx - 3.5f, cy - 3.5f, cx + 3.5f, cy + 3.5f, 1.3f);
-            Line(dc, br, cx - 3.5f, cy + 3.5f, cx + 3.5f, cy - 3.5f, 1.3f);
+            Line(dc, br, cx - 3, cy - 3, cx + 3, cy + 3, 1.3f);
+            Line(dc, br, cx - 3, cy + 3, cx + 3, cy - 3, 1.3f);
         }
     }
-    auto pr = TabPlusRect();  // +
-    float cx = (pr.left + pr.right) / 2, cy = (pr.top + pr.bottom) / 2;
+    auto pr = TabPlusRect();  // + in a circle
+    float cx = (pr.left + pr.right) / 2, cy = (track.top + track.bottom) / 2;
+    br->SetColor(g_dark ? D2D1::ColorF(1, 1, 1, 0.08f) : D2D1::ColorF(0, 0, 0, 0.05f));
+    dc->FillEllipse(D2D1::Ellipse({ cx, cy }, 10, 10), br);
     br->SetColor(pal.text2);
-    Line(dc, br, cx - 5, cy, cx + 5, cy, 1.4f);
-    Line(dc, br, cx, cy - 5, cx, cy + 5, 1.4f);
-    br->SetColor(g_dark ? D2D1::ColorF(0, 0, 0, 0.6f) : D2D1::ColorF(0, 0, 0, 0.12f));
+    Line(dc, br, cx - 4.5f, cy, cx + 4.5f, cy, 1.4f);
+    Line(dc, br, cx, cy - 4.5f, cx, cy + 4.5f, 1.4f);
+    br->SetColor(g_dark ? D2D1::ColorF(0, 0, 0, 0.45f) : D2D1::ColorF(0, 0, 0, 0.08f));
     dc->DrawLine({ Lay::SIDEBAR_W, bar.bottom - 0.5f }, { s.width, bar.bottom - 0.5f }, br, 1);
 }
 

@@ -135,6 +135,7 @@ struct DropSpot {
     int index = -1;     // SIDEBAR_INSERT: posição nos favoritos; TAG: etiqueta
     int item = -1;      // item do conteúdo destacado
     int row = -1;       // linha da barra lateral destacada
+    int tab = -1;       // tab under the pointer (drop into its folder; held still, the tab opens)
 };
 DropSpot DropSpotAt(POINT clientPx);
 void SetDropFeedback(const DropSpot& spot);

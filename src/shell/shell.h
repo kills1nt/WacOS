@@ -449,6 +449,7 @@ void Hide();                                 // clique, arrasto, menu: some já
 bool Showing(const std::wstring& appId);
 }
 
+namespace menubar { void CheckMaximized(); }  // barra_desfoque_max: blur the bar over a maximised app
 namespace ilha {  // Ilha Dinâmica (ilha.cpp): notch/pílula preta no topo (música, timer, avisos, Estante...); ajuste ilha=1, ilha_estilo
 bool Create(HINSTANCE hi);
 void Reload();                  // ajustes mudaram (ilha, ilha_estilo, ilha_notificacoes, ilha_volume, ilha_passar)
