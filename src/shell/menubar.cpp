@@ -1401,6 +1401,7 @@ void BarDragMove(POINT c) {
     if (!g_bd.moving) {
         if (std::abs(c.x - g_bd.start.x) < 6 && std::abs(c.y - g_bd.start.y) < 6) return;
         g_bd.moving = true;
+        Log(L"barra: puxando a janela %p (maximizada %d)", g_bd.win, (int)IsZoomed(g_bd.win));
         RECT full; GetWindowRect(g_bd.win, &full);
         float rel = std::clamp((c.x - full.left) / (float)std::max(1L, full.right - full.left), 0.f, 1.f);
         int w, hh;
@@ -1446,10 +1447,10 @@ LRESULT CALLBACK BarProc(HWND h, UINT m, WPARAM w, LPARAM l) {
             float px = (short)LOWORD(l) / sc;
             bool onItem = false;
             if (h == g_bar) for (auto& ht : g_hits) if (px >= ht.r.left && px < ht.r.right) { onItem = true; break; }
-            if (!onItem) {
-                POINT c; GetCursorPos(&c);
-                if (HWND win = MaximisedUnder(h, c)) { g_bd = { h, win, c, false, {} }; SetCapture(h); return 0; }
-            }
+            POINT c; GetCursorPos(&c);
+            HWND win = onItem ? nullptr : MaximisedUnder(h, c);
+            Log(L"barra: clique em %.0f (item %d) janela maximizada embaixo %p", px, (int)onItem, win);
+            if (win) { g_bd = { h, win, c, false, {} }; SetCapture(h); return 0; }
         }
         HWND keep = g_cur;
         g_cur = h;  // os menus abrem embaixo da barra clicada (no monitor dela)

@@ -26,7 +26,7 @@ int g_kind;                // alvo mostrado agora: 0 nada, 1 retângulo, 2 preen
 RECT g_target{};           // retângulo visível do alvo
 BYTE g_alpha;              // opacidade atual da prévia (aparece suave)
 bool g_turnedOff;          // o Shell desligou o encaixe do Windows (devolve ao sair)
-BOOL g_winBefore = TRUE;
+BOOL g_winBefore = TRUE, g_dockBefore = TRUE, g_sizeBefore = TRUE, g_dragBefore = TRUE;
 std::map<HWND, RECT> g_before;  // janelas sem a DLL encaixadas por nós: o retângulo de antes
 std::map<HWND, RECT> g_tiled;   // ...e o retângulo em que ficaram
 
@@ -37,12 +37,22 @@ bool Enabled() {
 }
 
 // o encaixe do Windows desligado só nesta sessão (sem gravar): com ele ligado, o Windows também agia na borda
+// Only the edge snapping of Windows is silenced (DockMoving, SnapSizing), not the whole window arrangement: with
+// SPI_SETWINARRANGING off Windows would not even start moving a maximised window, so dragging a maximised app by
+// its title bar did nothing (only apps with our DLL had a workaround). DragFromMaximize stays on: the window comes
+// out of maximised under the pointer, like on Windows.
 void SilenceWindows() {
-    BOOL cur = TRUE;
-    SystemParametersInfoW(SPI_GETWINARRANGING, 0, &cur, 0);
-    if (!cur) return;
-    if (!g_turnedOff) { g_winBefore = cur; g_turnedOff = true; }
-    SystemParametersInfoW(SPI_SETWINARRANGING, FALSE, nullptr, 0);
+    BOOL win = TRUE, dock = TRUE, size = TRUE, drag = TRUE;
+    SystemParametersInfoW(SPI_GETWINARRANGING, 0, &win, 0);
+    SystemParametersInfoW(0x0090 /*SPI_GETDOCKMOVING*/, 0, &dock, 0);
+    SystemParametersInfoW(0x008E /*SPI_GETSNAPSIZING*/, 0, &size, 0);
+    SystemParametersInfoW(0x008C /*SPI_GETDRAGFROMMAXIMIZE*/, 0, &drag, 0);
+    if (win && !dock && !size && drag) return;
+    if (!g_turnedOff) { g_winBefore = win; g_dockBefore = dock; g_sizeBefore = size; g_dragBefore = drag; g_turnedOff = true; }
+    SystemParametersInfoW(SPI_SETWINARRANGING, TRUE, nullptr, 0);
+    SystemParametersInfoW(0x0091 /*SPI_SETDOCKMOVING*/, FALSE, nullptr, 0);
+    SystemParametersInfoW(0x008F /*SPI_SETSNAPSIZING*/, FALSE, nullptr, 0);
+    SystemParametersInfoW(0x008D /*SPI_SETDRAGFROMMAXIMIZE*/, TRUE, nullptr, 0);
 }
 
 RECT Visible(HWND h, RECT& wr) {
@@ -256,7 +266,13 @@ void encaixe::Stop() {
     if (g_timer) { KillTimer(nullptr, g_timer); g_timer = 0; }
     Hide();
     // o encaixe do Windows volta como estava (sem gravar: o registro nunca mudou)
-    if (g_turnedOff) { SystemParametersInfoW(SPI_SETWINARRANGING, g_winBefore, nullptr, 0); g_turnedOff = false; }
+    if (g_turnedOff) {
+        SystemParametersInfoW(SPI_SETWINARRANGING, g_winBefore, nullptr, 0);
+        SystemParametersInfoW(0x0091, g_dockBefore, nullptr, 0);
+        SystemParametersInfoW(0x008F, g_sizeBefore, nullptr, 0);
+        SystemParametersInfoW(0x008D, g_dragBefore, nullptr, 0);
+        g_turnedOff = false;
+    }
 }
 
 // Win+← / Win+→ (sem o encaixe do Windows): metade esquerda/direita da tela do monitor da janela
