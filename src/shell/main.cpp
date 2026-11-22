@@ -719,7 +719,11 @@ static void CheckFullscreen() {
     bool locked = bloqueio::Active();
     bool fs = !locked && IsFullscreen(fg);
     HMONITOR fm = fs ? MonitorFromWindow(fg, MONITOR_DEFAULTTONEAREST) : nullptr;
-    if (!fs && !locked && (fm = FullByZOrder())) {
+    // the z-order walk is only needed now and then: window events come dozens of times a second while dragging
+    static DWORD zAt; static HMONITOR zMon;
+    if (!fs && !locked && GetTickCount() - zAt > 250) { zAt = GetTickCount(); zMon = FullByZOrder(); }
+    if (fs || locked) zMon = nullptr;
+    if (!fs && !locked && (fm = zMon)) {
         fs = true;
         static HMONITOR logged;
         if (fm != logged) Log(L"tela cheia: janela de cima cobre o monitor %p (não é a da frente)", fm);
@@ -736,7 +740,7 @@ static void CheckFullscreen() {
     }
     dock::SetFullscreen(locked || (fs && fm == dock::MonitorHandle()));
     menubar::SetFullscreen(locked || fs, fm);
-    menubar::CheckMaximized();
+    { static DWORD mAt; if (GetTickCount() - mAt > 200) { mAt = GetTickCount(); menubar::CheckMaximized(); } }
     ilha::SetFullscreen(locked);  // a ilha confere sozinha a tela cheia do monitor principal (jogo, vídeo, app)
 }
 

@@ -492,9 +492,9 @@ LRESULT CALLBACK MsgProc(HWND h, UINT m, WPARAM w, LPARAM l) {
         // windows moving behind the glass: once per refresh of the display (6 ms at 165 Hz; it was 15.5, ~64/s)
         static double frameMs = 0, frameAt = -1e9;
         if (anim::Now() - frameAt > 2000) { frameAt = anim::Now(); frameMs = std::max(4.0, vsync::FrameMs() - 0.6); }
-        double gap = soPapel ? 33.0 : frameMs;
+        double gap = soPapel ? 42.0 : frameMs;  // wallpaper only, seen blurred through the glass: 24/s is enough
         if (anim::Now() - last >= gap) { last = anim::Now(); st_nonDesk = false; Poll(w != 1); }
-        else if (soPapel) SetTimer(h, T_RG + 1, 33, nullptr); else vsync::Set(h, T_RG + 1, 16);  // cedo demais: monta no próximo tique (uma vez só)
+        else if (soPapel) SetTimer(h, T_RG + 1, 42, nullptr); else vsync::Set(h, T_RG + 1, 16);  // cedo demais: monta no próximo tique (uma vez só)
         return 0;
     }
     // o que ficou pendente; o temporizador só existe enquanto há algo (antes acordava 60 vezes/s sempre)
@@ -804,11 +804,25 @@ void Compose() {
     std::vector<RECT> areas = GlassAreas();
     composed = areas;
     { std::lock_guard<std::mutex> lk(areasMx); areasSnap = areas; }
+    // opaque app windows (not ours, not layered): an animated wallpaper fully hidden behind one of them under every
+    // glass piece does not change the glass, so its ~60 frames/s stop rebuilding it (a maximised app over Wallpaper
+    // Engine/Lively cost ~30 compositions a second for nothing)
+    std::vector<RECT> opaque;
+    for (auto& c : caps) {
+        wchar_t cl[48] = {}; GetClassNameW(c->h, cl, 48);
+        if (!wcscmp(cl, L"Progman") || !wcscmp(cl, L"WorkerW") || !wcscmp(cl, L"SequoiaMesa")) continue;
+        if (!IsWindowVisible(c->h) || IsIconic(c->h) || (GetWindowLongW(c->h, GWL_EXSTYLE) & (WS_EX_LAYERED | WS_EX_TRANSPARENT))) continue;
+        RECT b = Bounds(c->h); OffsetRect(&b, -mon.left, -mon.top);
+        opaque.push_back(b);
+    }
+    auto hidden = [&](const RECT& a) { for (auto& o : opaque) { RECT x; if (IntersectRect(&x, &o, &a) && EqualRect(&x, &a)) return true; } return false; };
     for (auto& c : caps) {  // quem está atrás de alguma peça: só o quadro novo dessas monta o fundo de novo
         RECT b = Bounds(c->h), x;
         OffsetRect(&b, -mon.left, -mon.top);
+        wchar_t cl[48] = {}; GetClassNameW(c->h, cl, 48);
+        bool desk = !wcscmp(cl, L"Progman") || !wcscmp(cl, L"WorkerW") || !wcscmp(cl, L"SequoiaMesa");
         bool rel = false;
-        for (auto& a : areas) if (IntersectRect(&x, &b, &a)) { rel = true; break; }
+        for (auto& a : areas) if (IntersectRect(&x, &b, &a) && !(desk && hidden(a))) { rel = true; break; }
         c->relevant = rel;
     }
     if (areas.empty()) return;

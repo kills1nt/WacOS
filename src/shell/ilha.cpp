@@ -1617,7 +1617,12 @@ void Paint() {
             RECT wr; GetWindowRect(g_wnd, &wr);
             int gx = wr.left + (int)std::lround(p.left * sc), gy = wr.top + (int)std::lround(p.top * sc);
             int gw = std::max(1L, std::lround((p.right - p.left) * sc)), gh = std::max(1L, std::lround((p.bottom - p.top) * sc));
-            SetWindowPos(g_back, g_wnd, gx, gy, gw, gh, SWP_NOACTIVATE | SWP_SHOWWINDOW);
+            // only when something changed: Paint runs 30 times a second while music plays (the bars), and each
+            // Set/Fade redraws the glass piece
+            static RECT lastR{}; static D2D1_COLOR_F lastT{}; static float lastA = -1, lastRad = -1;
+            RECT nowR{ gx, gy, gx + gw, gy + gh };
+            bool moved = memcmp(&nowR, &lastR, sizeof(RECT)) != 0 || !IsWindowVisible(g_back);
+            if (moved) SetWindowPos(g_back, g_wnd, gx, gy, gw, gh, SWP_NOACTIVATE | SWP_SHOWWINDOW);
             float op = std::clamp((float)_wtof(shell::Setting(L"ilha_opacidade", L"45").c_str()) / 100.f, 0.f, 1.f);
             float grow = std::clamp((p.bottom - p.top - PILL_H) / 60.f, 0.f, 1.f);
             D2D1_COLOR_F tint = D2D1::ColorF(0.05f, 0.05f, 0.07f, std::min(1.f, op + 0.32f * grow));
@@ -1630,8 +1635,9 @@ void Paint() {
                 tint = D2D1::ColorF(bc.r + (tint.r - bc.r) * grow, bc.g + (tint.g - bc.g) * grow, bc.b + (tint.b - bc.b) * grow,
                                     std::min(1.f, barA + 0.10f + (tint.a - barA - 0.10f) * grow));
             }
-            backdrop::Set(g_back, (float)gw, (float)gh, rad * sc, tint);
-            backdrop::Fade(g_back, alpha, 1, gw / 2.f, gh / 2.f);
+            if (moved || memcmp(&tint, &lastT, sizeof(tint)) || lastRad != rad) backdrop::Set(g_back, (float)gw, (float)gh, rad * sc, tint);
+            if (moved || lastA != alpha) backdrop::Fade(g_back, alpha, 1, gw / 2.f, gh / 2.f);
+            lastR = nowR; lastT = tint; lastA = alpha; lastRad = rad;
         } else if (IsWindowVisible(g_back)) ShowWindow(g_back, SW_HIDE);
     }
     if (leoNotch && alpha > 0.01f && geo) {
