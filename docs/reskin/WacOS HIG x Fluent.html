@@ -1,0 +1,259 @@
+<!doctype html>
+<html lang="uk">
+<head>
+<meta charset="utf-8">
+<title>WacOS — HIG × Fluent 2, варіанти</title>
+<style>
+:root{
+  --font:"Segoe UI Variable Text","Segoe UI Variable","Segoe UI",sans-serif;
+  --disp:"Segoe UI Variable Display","Segoe UI Variable","Segoe UI",sans-serif;
+  --ico:"Segoe Fluent Icons","Segoe MDL2 Assets";
+  --accent:#b46ad1;
+}
+*{box-sizing:border-box;margin:0}
+body{background:#0e0d11;color:#f3f2f5;font:14px/1.4 var(--font);padding:40px 48px 80px}
+body.light{background:#e6e3ea;color:#1b1a1f}
+i.g{font-family:var(--ico);font-style:normal;line-height:1;display:inline-block}
+h1{font:600 34px var(--disp)}
+h2{font:600 24px var(--disp);margin:0 0 4px}
+.lede{opacity:.7;max-width:820px;margin:8px 0 26px}
+.top{position:sticky;top:0;z-index:5;padding:10px 0 14px;background:inherit;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.top button{font:13px var(--font);border:1px solid rgba(127,127,127,.3);background:rgba(127,127,127,.12);color:inherit;border-radius:999px;padding:6px 14px;cursor:pointer}
+.top button.on{background:var(--accent);border-color:transparent;color:#fff}
+.top .sw{width:18px;height:18px;border-radius:50%;padding:0;border:0}
+.v{margin-top:46px}
+.v .why{opacity:.72;max-width:860px;font-size:13.5px;margin-bottom:6px}
+.v .from{font-size:12.5px;opacity:.55;margin-bottom:18px}
+.stage{display:grid;grid-template-columns:minmax(0,1.7fr) minmax(0,1fr);gap:22px;align-items:start}
+.wall{border-radius:16px;padding:34px 30px 92px;position:relative;overflow:hidden;background:radial-gradient(120% 90% at 10% 0%,#4a2a55 0,#1c1622 50%,#0c0b0f 100%)}
+body.light .wall{background:radial-gradient(120% 90% at 10% 0%,#e8d3f0 0,#d6cfe2 50%,#c5c0d2 100%)}
+
+/* ================= variant tokens ================= */
+/* A: HIG-first — concentric radii, capsules, glass sidebar floating inside the window */
+.A{--rw:16px;--rp:12px;--rc:999px;--rf:10px;--win:rgba(30,29,34,.86);--side:rgba(255,255,255,.06);--surf:transparent;
+   --stroke:rgba(255,255,255,.10);--sh:0 30px 80px rgba(0,0,0,.5),0 0 0 .5px rgba(255,255,255,.12);--ink:#f5f4f7;--ink2:rgba(245,244,247,.62);--ink3:rgba(245,244,247,.4);
+   --ctl:rgba(255,255,255,.09);--ctlh:rgba(255,255,255,.14);--sel:color-mix(in srgb,var(--accent) 85%,#000);--selink:#fff;--tb:52px;--pad:14px;--blur:blur(40px) saturate(1.6)}
+/* B: Fluent 2 structure, softened — Mica, nav pane, command bar; strokes replaced by elevation, radii up one step */
+.B{--rw:12px;--rp:8px;--rc:8px;--rf:8px;--win:#202024;--side:transparent;--surf:#29292e;
+   --stroke:rgba(255,255,255,.06);--sh:0 8px 16px rgba(0,0,0,.28),0 32px 64px rgba(0,0,0,.4);--ink:#f3f2f5;--ink2:rgba(243,242,245,.66);--ink3:rgba(243,242,245,.42);
+   --ctl:rgba(255,255,255,.06);--ctlh:rgba(255,255,255,.1);--sel:rgba(255,255,255,.08);--selink:#f3f2f5;--tb:44px;--pad:16px;--blur:none}
+/* C: hybrid — Apple toolbar/glass groups on top, Fluent density and nav pane, Windows caption buttons */
+.C{--rw:14px;--rp:10px;--rc:999px;--rf:8px;--win:#1d1c21;--side:transparent;--surf:#25242a;
+   --stroke:rgba(255,255,255,.07);--sh:0 24px 60px rgba(0,0,0,.5),0 0 0 .5px rgba(255,255,255,.1);--ink:#f4f3f6;--ink2:rgba(244,243,246,.62);--ink3:rgba(244,243,246,.4);
+   --ctl:rgba(255,255,255,.08);--ctlh:rgba(255,255,255,.13);--sel:color-mix(in srgb,var(--accent) 26%,transparent);--selink:#f4f3f6;--tb:48px;--pad:14px;--blur:blur(30px) saturate(1.4)}
+body.light .A{--win:rgba(250,249,252,.82);--side:rgba(0,0,0,.04);--stroke:rgba(0,0,0,.08);--sh:0 30px 80px rgba(40,20,60,.25),0 0 0 .5px rgba(0,0,0,.12);--ink:#1b1a1f;--ink2:rgba(27,26,31,.62);--ink3:rgba(27,26,31,.4);--ctl:rgba(0,0,0,.05);--ctlh:rgba(0,0,0,.09)}
+body.light .B{--win:#f3f2f6;--surf:#fbfafd;--stroke:rgba(0,0,0,.06);--sh:0 8px 16px rgba(40,20,60,.12),0 32px 64px rgba(40,20,60,.16);--ink:#1b1a1f;--ink2:rgba(27,26,31,.66);--ink3:rgba(27,26,31,.42);--ctl:rgba(0,0,0,.04);--ctlh:rgba(0,0,0,.07);--sel:rgba(0,0,0,.06);--selink:#1b1a1f}
+body.light .C{--win:#f2f1f5;--surf:#fbfafd;--stroke:rgba(0,0,0,.07);--sh:0 24px 60px rgba(40,20,60,.2),0 0 0 .5px rgba(0,0,0,.1);--ink:#1b1a1f;--ink2:rgba(27,26,31,.62);--ink3:rgba(27,26,31,.4);--ctl:rgba(0,0,0,.05);--ctlh:rgba(0,0,0,.08);--selink:#1b1a1f}
+
+/* ================= shared components ================= */
+.win{color:var(--ink);background:var(--win);border-radius:var(--rw);box-shadow:var(--sh);backdrop-filter:var(--blur);overflow:hidden;display:flex;flex-direction:column;height:480px}
+.tb{height:var(--tb);display:flex;align-items:center;gap:8px;padding-left:12px;flex:none}
+.cap{display:flex;align-self:stretch;margin-left:4px}
+.cap span{width:46px;display:grid;place-items:center;font-family:var(--ico);font-size:10px;color:var(--ink2)}
+.A .cap{align-self:center;gap:6px;padding-right:14px}
+.A .cap span{width:28px;height:28px;border-radius:50%;background:var(--ctl)}
+.A .cap span.x:hover{background:#e5484d;color:#fff}
+.B .cap span.x:hover,.C .cap span.x:hover{background:#c42b1c;color:#fff}
+.tool{height:32px;min-width:32px;border-radius:var(--rc);display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:0 8px;color:var(--ink2);font-size:13px}
+.tool:hover{background:var(--ctlh)}
+.group{display:flex;background:var(--ctl);border-radius:var(--rc);padding:2px}
+.C .group{background:rgba(255,255,255,.06);box-shadow:inset 0 .5px 0 rgba(255,255,255,.14),0 1px 2px rgba(0,0,0,.2)}
+body.light .C .group{background:rgba(255,255,255,.7);box-shadow:0 1px 3px rgba(0,0,0,.1)}
+.group .tool{height:28px;min-width:30px}
+.field{height:32px;border-radius:var(--rc);background:var(--ctl);display:flex;align-items:center;gap:8px;padding:0 12px;color:var(--ink3);font-size:13px;min-width:180px}
+.B .field{border-radius:var(--rf)}
+.body{flex:1;display:flex;min-height:0;gap:0}
+.side{width:200px;padding:6px 10px;flex:none}
+.A .side{margin:0 0 10px 10px;border-radius:var(--rp);background:var(--side);padding:8px}
+.side .h{font-size:11.5px;color:var(--ink3);padding:12px 10px 4px;font-weight:600}
+.B .side .h{font-weight:400}
+.side a{display:flex;align-items:center;gap:10px;height:32px;padding:0 10px;border-radius:var(--rf);font-size:13px;position:relative}
+.side a i{color:var(--accent);width:16px;font-size:15px}
+.B .side a i{color:var(--ink2)}
+.side a.on{background:var(--sel);color:var(--selink)}
+.A .side a.on i{color:#fff}
+.B .side a.on::before{content:"";position:absolute;left:0;top:9px;bottom:9px;width:3px;border-radius:2px;background:var(--accent)}
+.main{flex:1;min-width:0;padding:4px var(--pad) var(--pad)}
+.B .main,.C .main{background:var(--surf);border-top-left-radius:var(--rp);padding-top:14px}
+.ttl{font:700 22px var(--disp);letter-spacing:-.01em}
+.B .ttl{font-weight:600;font-size:20px}
+.sub{font-size:12px;color:var(--ink3);margin-left:8px;font-weight:400}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(88px,1fr));gap:4px;margin-top:14px}
+.fi{display:flex;flex-direction:column;align-items:center;gap:6px;padding:10px 4px;border-radius:var(--rp);font-size:12px;text-align:center}
+.fi.sel .lb{background:var(--accent);color:#fff;border-radius:5px;padding:0 5px}
+.A .fi.sel{background:var(--ctl)}
+.B .fi.sel{background:var(--sel)}.B .fi.sel .lb{background:none;color:inherit}
+.C .fi.sel{background:color-mix(in srgb,var(--accent) 18%,transparent)}.C .fi.sel .lb{background:none;color:inherit}
+.fold{width:54px;height:42px;border-radius:7px;background:linear-gradient(#73b4ff,#3f86ea);position:relative}
+.fold::before{content:"";position:absolute;left:0;top:-5px;width:22px;height:8px;border-radius:4px 4px 0 0;background:#3a7ad6}
+.doc{width:38px;height:48px;border-radius:6px;background:#f6f6f8;box-shadow:0 1px 2px rgba(0,0,0,.3);display:grid;place-items:end center;padding-bottom:6px;font:700 8px var(--font);color:var(--accent)}
+
+/* controls panel */
+.kit{color:var(--ink);background:var(--win);border-radius:var(--rw);box-shadow:var(--sh);backdrop-filter:var(--blur);padding:18px;display:grid;gap:16px}
+.B .kit{background:var(--surf)}
+.kit .lab{font-size:11.5px;color:var(--ink3);margin-bottom:-8px}
+.btns{display:flex;gap:8px;flex-wrap:wrap}
+.btn{height:32px;padding:0 16px;border-radius:var(--rc);background:var(--ctl);display:inline-flex;align-items:center;gap:8px;font-size:13px;color:var(--ink)}
+.btn.p{background:var(--accent);color:#fff}
+.A .btn.p{box-shadow:inset 0 1px 0 rgba(255,255,255,.25),0 2px 6px color-mix(in srgb,var(--accent) 40%,transparent)}
+.B .btn{border-radius:var(--rf);box-shadow:0 1px 2px rgba(0,0,0,.2)}
+.seg{display:inline-flex;background:var(--ctl);border-radius:var(--rc);padding:2px;font-size:12.5px}
+.seg span{padding:5px 14px;border-radius:var(--rc)}
+.B .seg,.B .seg span{border-radius:var(--rf)}
+.seg span.on{background:var(--win);box-shadow:0 1px 3px rgba(0,0,0,.25)}
+body:not(.light) .seg span.on{background:rgba(255,255,255,.16)}
+.B .seg span.on{background:var(--accent);color:#fff;box-shadow:none}
+.tg{width:40px;height:22px;border-radius:11px;background:var(--accent);position:relative;flex:none}
+.tg::after{content:"";position:absolute;right:2px;top:2px;width:18px;height:18px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.3)}
+.B .tg{height:20px;width:40px}.B .tg::after{width:12px;height:12px;top:4px;right:4px;box-shadow:none}
+.tg.off{background:var(--ctlh)}.tg.off::after{right:auto;left:2px}
+.B .tg.off{background:transparent;box-shadow:inset 0 0 0 1px var(--ink3)}.B .tg.off::after{left:4px;background:var(--ink2)}
+.rows{border-radius:var(--rp);background:var(--ctl);overflow:hidden}
+.B .rows{background:transparent;display:grid;gap:4px}
+.r{display:flex;align-items:center;gap:12px;padding:10px 14px;font-size:13px}
+.A .r+.r,.C .r+.r{border-top:1px solid var(--stroke)}
+.B .r{background:var(--ctl);border-radius:var(--rp);padding:14px 16px}
+.r .l{flex:1}.r small{display:block;color:var(--ink3);font-size:12px}
+.sl{display:flex;align-items:center;gap:10px}
+.sl .tr{flex:1;height:4px;border-radius:2px;background:var(--ctlh);position:relative}
+.sl .tr b{position:absolute;left:0;top:0;bottom:0;width:58%;border-radius:2px;background:var(--accent)}
+.sl .tr b::after{content:"";position:absolute;right:-10px;top:-8px;width:20px;height:20px;border-radius:50%;background:#fff;box-shadow:0 1px 4px rgba(0,0,0,.35)}
+.B .sl .tr b::after{background:var(--surf);border:5px solid var(--accent);box-shadow:0 0 0 1px var(--stroke)}
+.menu{border-radius:var(--rp);background:var(--win);box-shadow:var(--sh);padding:5px;font-size:13px;backdrop-filter:var(--blur)}
+.A .menu{border-radius:12px}
+.menu div{height:28px;display:flex;align-items:center;gap:10px;padding:0 10px;border-radius:calc(var(--rp) - 3px)}
+.menu div.hl{background:var(--accent);color:#fff}
+.B .menu div.hl{background:var(--ctlh);color:var(--ink)}
+.C .menu div.hl{background:var(--ctlh);color:var(--ink)}
+.menu kbd{margin-left:auto;font:12px var(--font);opacity:.55}
+.menu hr{border:0;border-top:1px solid var(--stroke);margin:4px 8px}
+
+/* dock per variant */
+.dock{position:absolute;left:50%;bottom:16px;transform:translateX(-50%);display:flex;gap:6px;padding:8px;align-items:flex-end;backdrop-filter:blur(30px) saturate(1.5)}
+.A .dock{border-radius:26px;background:rgba(255,255,255,.12);box-shadow:inset 0 .5px 0 rgba(255,255,255,.35),0 10px 30px rgba(0,0,0,.35)}
+.B .dock{border-radius:12px;background:rgba(32,32,36,.82);box-shadow:0 8px 24px rgba(0,0,0,.4);padding:6px 8px 8px}
+.C .dock{border-radius:20px;background:rgba(28,27,32,.7);box-shadow:inset 0 .5px 0 rgba(255,255,255,.18),0 10px 30px rgba(0,0,0,.4)}
+.dock .ic{width:46px;height:46px;border-radius:11px;display:grid;place-items:center;font-family:var(--ico);font-size:21px;color:#fff;position:relative}
+.A .dock .ic{border-radius:12px}
+.dock .ic::after{content:"";position:absolute;left:50%;transform:translateX(-50%);border-radius:2px}
+.A .dock .ic.run::after{bottom:-6px;width:4px;height:4px;border-radius:50%;background:rgba(255,255,255,.75)}
+.B .dock .ic.run::after{bottom:-6px;width:6px;height:3px;background:rgba(255,255,255,.5)}.B .dock .ic.act::after{width:16px;background:var(--accent)}
+.C .dock .ic.run::after{bottom:-6px;width:5px;height:3px;background:rgba(255,255,255,.6)}.C .dock .ic.act::after{width:14px;background:var(--accent)}
+.c1{background:linear-gradient(160deg,#6db1ff,#2c6be0)}.c2{background:linear-gradient(160deg,#c48be0,#7b3fa6)}.c3{background:linear-gradient(160deg,#ff6a7d,#d8264a)}
+.c4{background:linear-gradient(160deg,#ffd45c,#eaa21c)}.c5{background:linear-gradient(160deg,#3b3b42,#17171b)}.c6{background:linear-gradient(160deg,#9a9aa5,#55555e)}
+
+table{border-collapse:collapse;margin-top:40px;font-size:13px;width:100%}
+th,td{text-align:left;padding:9px 12px;border-bottom:1px solid rgba(127,127,127,.2);vertical-align:top}
+th{font-weight:600;opacity:.65}
+</style>
+</head>
+<body>
+<h1>HIG × Fluent 2</h1>
+<p class="lede">Основа — Apple Human Interface Guidelines: ієрархія, гармонія, концентричні кути, м'які елементи керування, скло лише там, де є глибина. З Fluent 2 беремо структуру Windows: панель навігації, Mica, щільність, кнопки вікна праворуч, клавіатурні підказки. Те, що у Fluent «топорне» (прямокутні кнопки з нижньою рамкою, рамки навколо всього, квадратні сегменти), замінюємо на рішення Apple. Три варіанти нижче — один і той самий екран і набір елементів, різні пропорції.</p>
+<div class="top">
+  <button data-go="A" class="on">A · Гармонія</button><button data-go="B">B · М'який Fluent</button><button data-go="C">C · Гібрид</button>
+  <span style="width:14px"></span>
+  <button class="sw" style="background:#b46ad1" data-a="#b46ad1"></button><button class="sw" style="background:#3d8bff" data-a="#3d8bff"></button><button class="sw" style="background:#2fb67c" data-a="#2fb67c"></button><button class="sw" style="background:#ff8a3d" data-a="#ff8a3d"></button>
+  <button id="mode">Світла тема</button>
+</div>
+
+<section class="v A" id="A">
+  <h2>A · Гармонія <span style="font-weight:400;opacity:.5;font-size:15px">— найближче до HIG</span></h2>
+  <p class="why">Вікно — скляна поверхня з кутом 16, бокова панель «плаває» всередині з кутом 12 (16 − відступ: концентричність Apple). Усі елементи керування — капсули. Кнопки вікна праворуч, але круглі й тихі; закрити червоніє при наведенні. Вибране в боковій панелі — заливка акцентом, як у Finder. Заголовок сторінки великий і жирний.</p>
+  <p class="from">Від Apple: концентричні кути, капсули, скло, великі заголовки, крапка під іконкою в Dock. Від Windows: розташування кнопок вікна, клавіатурні скорочення в меню.</p>
+  <div class="stage"></div>
+</section>
+
+<section class="v B" id="B">
+  <h2>B · М'який Fluent <span style="font-weight:400;opacity:.5;font-size:15px">— Windows 11, але без «квадратності»</span></h2>
+  <p class="why">Структура Параметрів Windows: Mica, панель навігації з пігулкою-індикатором, вміст на шарі з закругленим кутом. Кути піднято на крок (12/8), рамки навколо кнопок і полів прибрано, замість них — легка тінь. Налаштування — окремі картки-рядки, як у Windows 11. Перемикач і повзунок лишаються Fluent-овими, бо вони вже впізнавані.</p>
+  <p class="from">Від Apple: тіні замість рамок, менше ліній, ширші відступи. Від Windows: майже все інше.</p>
+  <div class="stage"></div>
+</section>
+
+<section class="v C" id="C">
+  <h2>C · Гібрид <span style="font-weight:400;opacity:.5;font-size:15px">— мій вибір</span></h2>
+  <p class="why">Панель інструментів як у macOS 26: інструменти зібрані в скляні групи-капсули в рядку заголовка. Нижче — щільність і навігація Windows, вміст на шарі з закругленим кутом. Кнопки вікна — звичайні Windows-кнопки праворуч (на всю висоту рядка, легко влучити). Вибране — тонка заливка акцентом без рамки. Меню й контекстні меню — Apple-подібні, але з сірим підсвічуванням і скороченнями.</p>
+  <p class="from">Від Apple: групи інструментів, капсули, перемикач iOS, рядки-списки з тонкими роздільниками. Від Windows: Mica, панель навігації, кнопки вікна, щільність.</p>
+  <div class="stage"></div>
+</section>
+
+<table>
+  <tr><th></th><th>A · Гармонія</th><th>B · М'який Fluent</th><th>C · Гібрид</th></tr>
+  <tr><td>Кути: вікно / панель / кнопка</td><td>16 / 12 / капсула</td><td>12 / 8 / 8</td><td>14 / 10 / капсула</td></tr>
+  <tr><td>Кнопки вікна</td><td>Круглі 28 px праворуч</td><td>Windows 46 px</td><td>Windows 46 px</td></tr>
+  <tr><td>Вибране</td><td>Заливка акцентом</td><td>Сіра заливка + пігулка зліва</td><td>Тонка заливка акцентом</td></tr>
+  <tr><td>Фон вікна</td><td>Скло</td><td>Mica</td><td>Mica, скло лише в групах інструментів</td></tr>
+  <tr><td>Налаштування</td><td>Згруповані списки</td><td>Окремі картки</td><td>Згруповані списки</td></tr>
+  <tr><td>Dock</td><td>Скляна капсула, крапки</td><td>Панель задач Windows 11</td><td>Темне скло, риски</td></tr>
+</table>
+
+<template id="tpl">
+  <div class="wall">
+    <div class="win">
+      <div class="tb">
+        <div class="group"><span class="tool"><i class="g">&#xE72B;</i></span><span class="tool"><i class="g">&#xE72A;</i></span></div>
+        <b class="ttl-tb" style="font-size:13px;margin:0 6px;flex:1">Завантаження</b>
+        <div class="group"><span class="tool"><i class="g">&#xF0E2;</i></span><span class="tool"><i class="g">&#xE8FD;</i></span></div>
+        <div class="group"><span class="tool"><i class="g">&#xE72D;</i></span><span class="tool"><i class="g">&#xE712;</i></span></div>
+        <div class="field"><i class="g">&#xE721;</i>Пошук</div>
+        <div class="cap"><span>&#xE921;</span><span>&#xE922;</span><span class="x">&#xE8BB;</span></div>
+      </div>
+      <div class="body">
+        <nav class="side">
+          <div class="h">Улюблене</div>
+          <a><i class="g">&#xE80F;</i>beakk</a><a><i class="g">&#xE7F4;</i>Робочий стіл</a><a class="on"><i class="g">&#xE896;</i>Завантаження</a><a><i class="g">&#xE8A5;</i>Документи</a>
+          <div class="h">Диски</div><a><i class="g">&#xEDA2;</i>Windows (C:)</a><a><i class="g">&#xEDA2;</i>Ігри (D:)</a>
+        </nav>
+        <div class="main">
+          <div class="ttl">Завантаження<span class="sub">24 елементи</span></div>
+          <div class="grid">
+            <div class="fi"><div class="fold"></div><span class="lb">Моди</span></div>
+            <div class="fi sel"><div class="fold"></div><span class="lb">Apollo</span></div>
+            <div class="fi"><div class="fold"></div><span class="lb">Screenshots</span></div>
+            <div class="fi"><div class="doc">PDF</div><span class="lb">інвойс.pdf</span></div>
+            <div class="fi"><div class="doc">ZIP</div><span class="lb">WacOS.zip</span></div>
+            <div class="fi"><div class="doc">PNG</div><span class="lb">logo.png</span></div>
+            <div class="fi"><div class="doc">MKV</div><span class="lb">серія-03.mkv</span></div>
+            <div class="fi"><div class="doc">EXE</div><span class="lb">setup.exe</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="dock">
+      <div class="ic c1 run act">&#xE8B7;</div><div class="ic c2 run" style="font:600 20px var(--disp)">H</div><div class="ic c3 run">&#xE8D6;</div><div class="ic c4">&#xE70B;</div><div class="ic c5 run">&#xE756;</div><div class="ic c6">&#xE713;</div>
+    </div>
+  </div>
+  <div style="display:grid;gap:16px">
+    <div class="kit">
+      <div class="lab">Кнопки</div>
+      <div class="btns"><span class="btn">Скасувати</span><span class="btn p">Зберегти</span><span class="btn"><i class="g">&#xE710;</i>Нова</span></div>
+      <div class="lab">Сегменти</div>
+      <div><span class="seg"><span class="on">Значки</span><span>Список</span><span>Стовпці</span></span></div>
+      <div class="lab">Налаштування</div>
+      <div class="rows">
+        <div class="r"><span class="l">Темний режим<small>Автоматично ввечері</small></span><span class="tg"></span></div>
+        <div class="r"><span class="l">Кнопки вікна праворуч</span><span class="tg"></span></div>
+        <div class="r"><span class="l">Звуки інтерфейсу</span><span class="tg off"></span></div>
+      </div>
+      <div class="lab">Гучність</div>
+      <div class="sl"><i class="g">&#xE767;</i><div class="tr"><b></b></div></div>
+    </div>
+    <div class="menu">
+      <div><i class="g">&#xE8E5;</i>Відкрити</div><div class="hl"><i class="g">&#xE737;</i>Відкрити в новій вкладці<kbd>Ctrl+↵</kbd></div>
+      <hr><div><i class="g">&#xE8C8;</i>Копіювати<kbd>Ctrl+C</kbd></div><div><i class="g">&#xE8AC;</i>Перейменувати<kbd>F2</kbd></div>
+    </div>
+  </div>
+</template>
+
+<script>
+const t=document.getElementById('tpl');
+document.querySelectorAll('.stage').forEach(s=>s.appendChild(t.content.cloneNode(true)));
+// A: no Mica layer, title as a large heading inside; B: Fluent command bar without glass groups
+document.querySelectorAll('.B .group').forEach(g=>g.style.background='transparent');
+document.querySelectorAll('[data-go]').forEach(b=>b.onclick=()=>{document.querySelectorAll('[data-go]').forEach(x=>x.classList.toggle('on',x===b));document.getElementById(b.dataset.go).scrollIntoView({behavior:'smooth'})});
+document.querySelectorAll('[data-a]').forEach(b=>b.onclick=()=>document.documentElement.style.setProperty('--accent',b.dataset.a));
+const m=document.getElementById('mode');m.onclick=()=>{document.body.classList.toggle('light');m.textContent=document.body.classList.contains('light')?'Темна тема':'Світла тема'};
+</script>
+</body>
+</html>
