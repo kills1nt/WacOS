@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="uk">
+<head>
+<meta charset="utf-8">
+<title>WacOS — випадайки</title>
+<style>
+:root{--accent:#b46ad1;--font:"Segoe UI Variable Text","Segoe UI",sans-serif;--disp:"Segoe UI Variable Display","Segoe UI",sans-serif;--ico:"Segoe Fluent Icons","Segoe MDL2 Assets";
+--glass:rgba(34,32,38,.78);--ink:#f5f4f7;--ink2:rgba(245,244,247,.62);--ink3:rgba(245,244,247,.4);--line:rgba(255,255,255,.08);--hov:rgba(255,255,255,.09)}
+*{box-sizing:border-box;margin:0}
+body{background:#0e0d11;color:var(--ink);font:14px/1.4 var(--font);padding:40px 48px 80px}
+i.g{font-family:var(--ico);font-style:normal;line-height:1;display:inline-block;font-size:15px}
+h1{font:600 34px var(--disp)} h2{font:600 22px var(--disp);margin:48px 0 4px}
+.lede,.why{opacity:.7;max-width:860px;margin-top:8px;font-size:13.5px}
+.why{margin-bottom:16px}
+.scene{position:relative;height:560px;border-radius:16px;overflow:hidden;background:radial-gradient(120% 90% at 10% 0%,#4a2a55 0,#1c1622 50%,#0c0b0f 100%)}
+.bar{position:absolute;inset:0 0 auto 0;height:30px;display:flex;align-items:center;gap:2px;padding:0 8px;font-size:13px;background:rgba(10,10,14,.35);backdrop-filter:blur(24px)}
+.bar .m{padding:3px 10px;border-radius:6px}.bar .m.on{background:rgba(255,255,255,.16)}.bar b.m{font-weight:600}
+.bar .sp{flex:1}.bar .t{width:28px;height:22px;display:grid;place-items:center;border-radius:6px}.bar .t.on{background:rgba(255,255,255,.16)}
+.island{position:absolute;left:50%;top:3px;transform:translateX(-50%);height:24px;width:190px;border-radius:12px;background:#000}
+.dock{position:absolute;left:50%;bottom:12px;transform:translateX(-50%);display:flex;gap:6px;padding:7px;border-radius:22px;background:rgba(255,255,255,.12);backdrop-filter:blur(30px);box-shadow:inset 0 .5px 0 rgba(255,255,255,.3)}
+.dock span{width:44px;height:44px;border-radius:11px;display:grid;place-items:center;font-family:var(--ico);font-size:20px;color:#fff}
+.c1{background:linear-gradient(160deg,#6db1ff,#2c6be0)}.c2{background:linear-gradient(160deg,#c48be0,#7b3fa6)}.c3{background:linear-gradient(160deg,#ff6a7d,#d8264a)}.c4{background:linear-gradient(160deg,#3b3b42,#17171b)}.c5{background:linear-gradient(160deg,#9a9aa5,#55555e)}
+/* the menu surface: Apple glass + hairline + soft shadow */
+.pop{position:absolute;background:var(--glass);backdrop-filter:blur(40px) saturate(1.7);border-radius:14px;box-shadow:0 0 0 .5px rgba(255,255,255,.16),0 20px 50px rgba(0,0,0,.5);padding:6px;font-size:13px}
+.it{height:32px;display:flex;align-items:center;gap:11px;padding:0 10px;border-radius:8px;white-space:nowrap}
+.it i{width:16px;color:var(--ink2)}
+.it.hl{background:var(--accent);color:#fff}.it.hl i,.it.hl kbd,.it.hl .ch{color:#fff}
+.it kbd{margin-left:auto;padding-left:24px;font:12px var(--font);color:var(--ink3)}
+.it .ch{margin-left:auto;font-family:var(--ico);font-size:9px;color:var(--ink3)}
+.it.dis{color:var(--ink3)}
+.sep{height:1px;background:var(--line);margin:5px 10px}
+.hd{font-size:11.5px;font-weight:600;color:var(--ink3);padding:8px 10px 3px}
+.srch{height:32px;margin:2px 2px 6px;border-radius:9px;background:rgba(255,255,255,.07);display:flex;align-items:center;gap:8px;padding:0 10px;color:var(--ink3)}
+.tiles{display:grid;grid-template-columns:repeat(4,1fr);gap:4px;margin:2px 2px 4px}
+.tiles div{height:58px;border-radius:10px;background:rgba(255,255,255,.06);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;font-size:11.5px;color:var(--ink2)}
+.tiles div i{color:var(--ink);font-size:17px}
+.tiles div.hl{background:var(--accent);color:#fff}.tiles div.hl i{color:#fff}
+.acc{background:rgba(255,255,255,.05);border-radius:9px;margin:2px 0}
+.acc .it{padding-left:36px;height:30px}
+.tag{font-size:11px;padding:1px 7px;border-radius:999px;background:rgba(255,255,255,.1);color:var(--ink2);margin-left:6px}
+.legend{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-top:14px}
+.legend div{background:rgba(255,255,255,.04);border-radius:12px;padding:12px 14px;font-size:12.5px;color:var(--ink2)}
+.legend b{color:var(--ink);display:block;margin-bottom:4px;font-size:13px}
+</style>
+</head>
+<body>
+<h1>Випадайки: дизайн Apple, зручність Windows</h1>
+<p class="lede">Смуга меню, острівець і Dock лишаються як у macOS. Міняємо лише те, що випадає: меню програм, меню значків трею, контекстне меню й меню Dock. Вигляд Apple (скло, 14 px кути, тонка обвідка, м'яка тінь, капсула виділення), а поведінка зручніша. Три способи, можна змішувати.</p>
+<div class="legend">
+  <div><b>Що не так у Mac</b>Дрібні рядки по 22 px, без іконок, підменю вилітають убік і зникають, якщо курсор зісковзнув, пошук ховається в «Довідці», часті дії нічим не виділені.</div>
+  <div><b>Що беремо з Windows</b>Іконка в кожному рядку, рядки 32 px, скорочення праворуч, пошук команд, часті дії зверху, клік правою кнопкою скрізь.</div>
+  <div><b>Що лишаємо від Apple</b>Скло й тінь, акцентна капсула виділення, групи з тонкими роздільниками, сірі заголовки груп, ніяких рамок навколо рядків.</div>
+</div>
+
+<h2>1 · Mac, але зручно</h2>
+<p class="why">Звичайне меню, тільки рядки вищі, з іконками й скороченнями. Підменю не вилітає, а відкривається з затримкою «прощення»: можна вести курсор по діагоналі, і воно не закриється. Пошук команд першим рядком — почав друкувати, і меню фільтрується.</p>
+<div class="scene">
+  <div class="bar"><span class="m">◆</span><b class="m">Файли</b><span class="m on">Файл</span><span class="m">Правка</span><span class="m">Вигляд</span><span class="m">Перейти</span><span class="m">Вікно</span><span class="sp"></span><span class="t"><i class="g">&#xE701;</i></span><span class="t"><i class="g">&#xE767;</i></span><span class="t"><i class="g">&#xE721;</i></span></div>
+  <div class="island"></div>
+  <div class="pop" style="left:96px;top:34px;width:280px">
+    <div class="srch"><i class="g" style="font-size:13px">&#xE721;</i>Знайти команду…</div>
+    <div class="it"><i class="g">&#xE8A7;</i>Нове вікно<kbd>Ctrl N</kbd></div>
+    <div class="it"><i class="g">&#xE737;</i>Нова вкладка<kbd>Ctrl T</kbd></div>
+    <div class="it"><i class="g">&#xE8F4;</i>Нова папка<kbd>Ctrl Shift N</kbd></div>
+    <div class="sep"></div>
+    <div class="it hl"><i class="g">&#xE81C;</i>Нещодавні<span class="ch">&#xE76C;</span></div>
+    <div class="it"><i class="g">&#xE72D;</i>Поділитися…</div>
+    <div class="sep"></div>
+    <div class="it"><i class="g">&#xE946;</i>Властивості<kbd>Alt Enter</kbd></div>
+    <div class="it dis"><i class="g">&#xE74D;</i>Перемістити в кошик<kbd>Del</kbd></div>
+    <div class="sep"></div>
+    <div class="it"><i class="g">&#xE8BB;</i>Закрити вікно<kbd>Ctrl W</kbd></div>
+  </div>
+  <div class="pop" style="left:372px;top:186px;width:250px">
+    <div class="it"><i class="g">&#xE8B7;</i>Завантаження</div><div class="it"><i class="g">&#xE8B7;</i>Projects / WacOS</div><div class="it"><i class="g">&#xEB9F;</i>Screenshots</div><div class="sep"></div><div class="it" style="color:var(--ink2)"><i class="g">&#xE894;</i>Очистити список</div>
+  </div>
+  <div class="dock"><span class="c1">&#xE8B7;</span><span class="c2" style="font:600 19px var(--disp)">H</span><span class="c3">&#xE8D6;</span><span class="c4">&#xE756;</span><span class="c5">&#xE713;</span></div>
+</div>
+
+<h2>2 · Командна панель</h2>
+<p class="why">Меню стає маленькою панеллю: зверху пошук і плитки з чотирма найчастішими діями (WacOS запам'ятовує, що ти натискаєш), нижче — решта списком. Це для меню трею й для меню логотипа, де дій багато.</p>
+<div class="scene">
+  <div class="bar"><span class="m on">◆</span><b class="m">Файли</b><span class="m">Файл</span><span class="m">Правка</span><span class="m">Вигляд</span><span class="sp"></span><span class="t"><i class="g">&#xE701;</i></span><span class="t on"><i class="g">&#xE767;</i></span><span class="t"><i class="g">&#xE721;</i></span></div>
+  <div class="island"></div>
+  <div class="pop" style="left:8px;top:34px;width:320px">
+    <div class="srch"><i class="g" style="font-size:13px">&#xE721;</i>Програми, налаштування, команди</div>
+    <div class="tiles"><div class="hl"><i class="g">&#xE713;</i>Параметри</div><div><i class="g">&#xE756;</i>Термінал</div><div><i class="g">&#xE9D9;</i>Диспетчер</div><div><i class="g">&#xE722;</i>Знімок</div></div>
+    <div class="sep"></div>
+    <div class="it"><i class="g">&#xE946;</i>Про цей ПК</div>
+    <div class="it"><i class="g">&#xE895;</i>Оновлення<span class="tag">2</span></div>
+    <div class="it"><i class="g">&#xE81C;</i>Нещодавні об'єкти<span class="ch">&#xE76C;</span></div>
+    <div class="sep"></div>
+    <div class="it"><i class="g">&#xE708;</i>Сон</div><div class="it"><i class="g">&#xE777;</i>Перезапустити…</div><div class="it"><i class="g">&#xE7E8;</i>Вимкнути…</div>
+    <div class="sep"></div><div class="it"><i class="g">&#xE72E;</i>Заблокувати<kbd>Win L</kbd></div>
+  </div>
+  <div class="pop" style="right:40px;top:34px;width:300px;padding:12px">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px"><b style="flex:1">Звук</b><span style="font-size:12px;color:var(--ink3)">40 %</span></div>
+    <div style="height:28px;border-radius:14px;background:rgba(255,255,255,.08);position:relative;overflow:hidden"><b style="position:absolute;inset:0 60% 0 0;background:#fff;border-radius:14px"></b><i class="g" style="position:absolute;left:10px;top:7px;color:#333;font-size:14px">&#xE767;</i></div>
+    <div class="hd" style="padding-left:0;margin-top:10px">Вихід</div>
+    <div class="it hl" style="margin:0 -6px"><i class="g">&#xE7F6;</i>Навушники Sony WH-1000XM5<span class="ch">&#xE73E;</span></div>
+    <div class="it" style="margin:0 -6px"><i class="g">&#xE7F5;</i>Динаміки монітора</div>
+    <div class="sep" style="margin:6px 0"></div>
+    <div class="it" style="margin:0 -6px;color:var(--ink2)"><i class="g">&#xE713;</i>Параметри звуку…</div>
+  </div>
+  <div class="dock"><span class="c1">&#xE8B7;</span><span class="c2" style="font:600 19px var(--disp)">H</span><span class="c3">&#xE8D6;</span><span class="c4">&#xE756;</span><span class="c5">&#xE713;</span></div>
+</div>
+
+<h2>3 · Без підменю</h2>
+<p class="why">Підменю розгортаються всередині того самого меню, як акордеон, тож нічого не вилітає вбік і не зникає. Контекстне меню файлу починається рядком швидких дій (копіювати, вирізати, перейменувати, видалити) — як у Windows 11, але капсулами. Меню Dock — список вікон програми з мініатюрними назвами.</p>
+<div class="scene">
+  <div class="bar"><span class="m">◆</span><b class="m">Файли</b><span class="m">Файл</span><span class="m">Правка</span><span class="m">Вигляд</span><span class="sp"></span><span class="t"><i class="g">&#xE701;</i></span><span class="t"><i class="g">&#xE767;</i></span></div>
+  <div class="island"></div>
+  <div class="pop" style="left:120px;top:70px;width:270px">
+    <div style="display:flex;gap:4px;padding:2px 2px 6px">
+      <span class="it" style="flex:1;justify-content:center;background:rgba(255,255,255,.06);padding:0"><i class="g" style="color:var(--ink)">&#xE8C8;</i></span>
+      <span class="it" style="flex:1;justify-content:center;background:rgba(255,255,255,.06);padding:0"><i class="g" style="color:var(--ink)">&#xE8C6;</i></span>
+      <span class="it" style="flex:1;justify-content:center;background:rgba(255,255,255,.06);padding:0"><i class="g" style="color:var(--ink)">&#xE8AC;</i></span>
+      <span class="it" style="flex:1;justify-content:center;background:rgba(255,255,255,.06);padding:0"><i class="g" style="color:#ff7b72">&#xE74D;</i></span>
+    </div>
+    <div class="it"><i class="g">&#xE8E5;</i>Відкрити<kbd>Enter</kbd></div>
+    <div class="it hl"><i class="g">&#xE7AC;</i>Відкрити за допомогою<span class="ch">&#xE70D;</span></div>
+    <div class="acc"><div class="it"><span style="width:16px;height:16px;border-radius:4px;background:linear-gradient(135deg,#ff8a3d,#d8264a)"></span>Zen</div><div class="it"><span style="width:16px;height:16px;border-radius:4px;background:#2b62d9"></span>VS Code</div><div class="it" style="color:var(--ink2)">Інша програма…</div></div>
+    <div class="it"><i class="g">&#xE72D;</i>Поділитися</div>
+    <div class="it"><i class="g">&#xE7C1;</i>Тег<span class="ch">&#xE70E;</span></div>
+    <div class="sep"></div>
+    <div class="it"><i class="g">&#xE946;</i>Властивості<kbd>Alt Enter</kbd></div>
+  </div>
+  <div class="pop" style="left:50%;transform:translateX(-62%);bottom:74px;width:260px">
+    <div class="hd">Файли · 3 вікна</div>
+    <div class="it hl"><i class="g">&#xE8B7;</i>Завантаження</div><div class="it"><i class="g">&#xE8B7;</i>Projects</div><div class="it"><i class="g">&#xE8B7;</i>Ігри (D:)</div>
+    <div class="sep"></div>
+    <div class="it"><i class="g">&#xE8A7;</i>Нове вікно</div><div class="it"><i class="g">&#xE840;</i>Відкріпити від Dock</div>
+    <div class="sep"></div><div class="it"><i class="g">&#xE8BB;</i>Закрити всі вікна</div>
+  </div>
+  <div class="dock"><span class="c1">&#xE8B7;</span><span class="c2" style="font:600 19px var(--disp)">H</span><span class="c3">&#xE8D6;</span><span class="c4">&#xE756;</span><span class="c5">&#xE713;</span></div>
+</div>
+</body>
+</html>
