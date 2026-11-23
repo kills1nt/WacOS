@@ -269,7 +269,7 @@ void PaintGolden2(D2D1_SIZE_F sz, bool dark) {
         Text(range, g_tfSmall, D2D1::RectF(tx, 27, tx + 320, 42), gray);
     }
     // botões da direita, da borda para dentro
-    float R = sz.width - 8, cy = 26;
+    float R = sz.width - CapsW() - 8, cy = 26;
     auto group = [&](float w) { D2D1_RECT_F r = D2D1::RectF(R - w, cy - 18, R, cy + 18); GlassButton(r, dark); BarButton(r); R = r.left; return r; };
     {   // lupa (com busca: o campo aberto com o texto)
         D2D1_RECT_F r = group(g_search.empty() ? 36.f : 200.f);
@@ -342,8 +342,8 @@ void PaintGolden2(D2D1_SIZE_F sz, bool dark) {
             g_gh.push_back({ 1, v, r });
         }
     } else {
-        D2D1_RECT_F tb = D2D1::RectF(108 - 18, cy - 18, 108 + 18, cy + 18);
-        GlassButton(tb, dark); IconSidebar({ 108, cy }, text);
+        D2D1_RECT_F tb = D2D1::RectF(LeftX(108) - 18, cy - 18, LeftX(108) + 18, cy + 18);
+        GlassButton(tb, dark); IconSidebar({ LeftX(108), cy }, text);
         g_gh.push_back({ 2, 0, tb }); BarButton(tb);
     }
 }

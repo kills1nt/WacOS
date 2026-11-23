@@ -242,7 +242,7 @@ void LightsLayout(Info* in, float& lx0, float& lpitch, float& lr) {
 }
 // Buttons on the right (semaforo::Direita, botoes_direita=1): Windows order, close at the edge. Not in the WacOS apps
 // that use this DLL for their bar (their toolbars are laid out after left buttons)
-bool Right(Info* in) { return semaforo::Direita() && (!OwnApp() || semaforo::Wac()) && !UnifiedBar(in->owner); }
+bool Right(Info* in) { return semaforo::Direita() && (!OwnApp() || semaforo::Wac()) && (!UnifiedBar(in->owner) || semaforo::Wac()); }
 bool TemaWac();  // below: wacos_ui (default on)
 // WacOS design (variant C): Windows caption buttons — 46 pt wide, the full bar height, close turns red. Apps that draw
 // their own bar (Chromium & co.) keep their native Windows buttons untouched.
@@ -403,7 +403,7 @@ void Paint(Info* in) {
             for (int k = 0; k < 3; k++) {
                 if (k > 0 && !can[1] && !can[2]) continue;  // dialog: only close
                 float cx = LightX(in, k, W);
-                D2D1_RECT_F br = D2D1::RectF(cx - CAP_W / 2, 0, cx + CAP_W / 2, H);
+                D2D1_RECT_F br = D2D1::RectF(cx - CAP_W / 2, 0, cx + CAP_W / 2, std::min(H, 40.f));  // unified bar (52): a 40 row at the top
                 bool hot = in->hotBtn == k && can[k], down = hot && in->press == k;
                 if (hot) {
                     b->SetColor(k == 0 ? D2D1::ColorF(0.769f, 0.169f, 0.110f, down ? 0.85f : 1.f)
@@ -498,7 +498,7 @@ int HitLight(Info* in, POINT clientPt) {
     float H = (r.bottom - r.top) / sc;
     float x = clientPt.x / sc, y = clientPt.y / sc, W = (r.right - r.left) / sc;
     if (WacCaps(in)) {
-        if (in->custom || y < 0 || y > H) return -1;
+        if (in->custom || y < 0 || y > std::min(H, 40.f)) return -1;
         bool dlg = !(in->style & WS_MINIMIZEBOX) && !(in->style & WS_MAXIMIZEBOX);
         for (int k = 0; k < (dlg ? 1 : 3); k++) if (std::fabs(x - LightX(in, k, W)) <= CAP_W / 2) return k;
         return -1;

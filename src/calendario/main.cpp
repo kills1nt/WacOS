@@ -454,7 +454,7 @@ void PaintGolden() {
         Fill(D2D1::RectF(0, 0, SIDE, sz.height), dark ? Rgb(43, 41, 40) : Rgb(237, 237, 236));
         Fill(D2D1::RectF(SIDE - 0.5f, 0, SIDE, sz.height), dark ? Rgb(0, 0, 0, 0.5f) : Rgb(0, 0, 0, 0.08f));
         // calendários / caixa de entrada (vidro): o primeiro esconde a lateral
-        D2D1_RECT_F grp = D2D1::RectF(133.5f, 8, 211, 44);
+        D2D1_RECT_F grp = D2D1::RectF(LeftX(133.5f), 8, LeftX(211), 44);
         GlassButton(grp, dark);
         D2D1_RECT_F b1 = D2D1::RectF(grp.left + 4, 12, grp.left + 35, 40), b2 = D2D1::RectF(grp.right - 35, 12, grp.right - 4, 40);
         Fill(b1, dark ? Rgb(255, 255, 255, 0.14f) : Rgb(0, 0, 0, 0.08f), 14);
@@ -490,10 +490,10 @@ void PaintGolden() {
         MiniMonth(0, sz.height, dark, text, gray);
     }
     // barra: "+" redondo, Dia/Semana/Mês/Ano, busca
-    float cl = X0, cr = sz.width;
-    float plusL = g_side ? cl + 6 : 84;
+    float cl = X0, cr = sz.width - CapsW();
+    float plusL = g_side ? cl + 6 : LeftX(84);
     if (!g_side) {  // lateral escondida: o botão dela vem para a barra, logo depois dos três botões (senão não voltava)
-        D2D1_RECT_F sb = D2D1::RectF(84, 7.5f, 121, 44.5f);
+        D2D1_RECT_F sb = D2D1::RectF(LeftX(84), 7.5f, LeftX(121), 44.5f);
         GlassButton(sb, dark);
         IconSidebar({ (sb.left + sb.right) / 2, 26 }, text);
         g_hits.push_back({ 5, 0, 0, sb }); BarButton(sb);

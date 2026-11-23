@@ -208,10 +208,10 @@ void PaintGolden() {
         g_hits.push_back({ 3, 0, add });
     }
     // ---- barra do conteúdo
-    float W = sz.width;
+    float W = sz.width - CapsW();
     if (g_hideSide) {  // a lateral escondida: o botão de mostrar vai para a barra, depois dos três botões
-        D2D1_RECT_F tg = D2D1::RectF(84, 8, 120, 44);
-        GlassButton(tg, dark); IconSidebar({ 102, 26 }, text);
+        D2D1_RECT_F tg = D2D1::RectF(LeftX(84), 8, LeftX(120), 44);
+        GlassButton(tg, dark); IconSidebar({ LeftX(102), 26 }, text);
         g_hits.push_back({ 9, 0, tg }); BarButton(tg);
     }
     D2D1_RECT_F srch = D2D1::RectF(W - 8 - 224.5f, 8, W - 8, 44);
@@ -241,7 +241,7 @@ void PaintGolden() {
     Text(g_filter.empty() ? std::wstring(Tr(L"Buscar")) : g_filter, g_tfInfoG, D2D1::RectF(srch.left + 32, 8, srch.right - 12, 44), g_filter.empty() ? gray : text);
     g_hits.push_back({ 11, 0, srch });
     // ---- título, concluídos e a lista
-    float X = S0 + 17, R = W - 15.5f;
+    float X = S0 + 17, R = W + CapsW() - 15.5f;
     D2D1_COLOR_F sc = SelColor();
     int n = 0; for (auto* r : Shown()) if (!r->done || g_sel == S_DONE) n++;
     Text(SelName(), g_tfTitleG, D2D1::RectF(X, 58, R - 90, 99), sc);

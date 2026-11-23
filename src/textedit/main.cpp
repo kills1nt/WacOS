@@ -303,13 +303,13 @@ void PaintGolden() {
     rt->Clear(bg);
     // título: ícone do documento e o nome
     {
-        float x = 88, cy = 16;
+        float x = LeftX(88), cy = 16;
         D2D1_RECT_F ic = D2D1::RectF(x, cy - 8, x + 12, cy + 8);
         Fill(ic, dark ? Rgb(230, 230, 230) : Rgb(250, 250, 250), 1.5f);
         br->SetColor(dark ? Rgb(255, 255, 255, 0.4f) : Rgb(0, 0, 0, 0.35f)); rt->DrawRoundedRectangle(D2D1::RoundedRect(ic, 1.5f, 1.5f), br, 0.75f);
         for (int i = 0; i < 4; i++) Fill(D2D1::RectF(x + 2.5f, cy - 4.5f + i * 3, x + 9.5f, cy - 3.8f + i * 3), Rgb(120, 120, 120));
         wchar_t t[512] = {}; GetWindowTextW(wnd, t, 512);
-        Text(t, g_tfTitleG, D2D1::RectF(x + 18, 0, sz.width - 20, G_TITLE), dark ? Rgb(255, 255, 255, 0.55f) : Rgb(0, 0, 0, 0.55f));
+        Text(t, g_tfTitleG, D2D1::RectF(x + 18, 0, sz.width - CapsW() - 20, G_TITLE), dark ? Rgb(255, 255, 255, 0.55f) : Rgb(0, 0, 0, 0.55f));
     }
     if (g_plain) { Fill(D2D1::RectF(0, G_TITLE - 0.5f, sz.width, G_TITLE), sep); return; }
     CHARFORMAT2W cf = CurChar();

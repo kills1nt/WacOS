@@ -49,7 +49,7 @@ inline const Estado& Ler(bool force = false) {  // force: relê já (o Shell avi
     // WacOS design (wacos_ui, default on): the apps take the plain Tahoe structure (Windows title row + toolbar under
     // it) instead of the Golden Gate unified bar, so the Windows caption buttons fit on the right of the title row
     st.wac = wac && !(leo && !liquid);
-    st.aqua = liquid && golden && !st.wac;
+    st.aqua = (liquid && golden) || st.wac;  // the apps keep the unified Golden Gate bar; the DLL puts Windows buttons on its right
     st.liquid = liquid;
     st.leopard = leo && !liquid;
     st.direita = dir;  // Mac OS X Leopard: só sem o Liquid Glass (o Sequoia por baixo)

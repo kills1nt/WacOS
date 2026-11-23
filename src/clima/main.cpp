@@ -260,8 +260,8 @@ void PaintGoldenWx() {
     SkyFill(D2D1::RectF(0, 0, sz.width, sz.height), sky, 0);
     // ---- lateral (escondida: o botão dela fica na barra, logo depois dos três botões da janela, sobre o céu)
     if (!g_side) {
-        D2D1_RECT_F tb = D2D1::RectF(84, 8, 120, 44);
-        Fill(tb, Rgb(255, 255, 255, 0.16f), 18); IconSidebar({ 102, 26 }, white); BarButton(tb);
+        D2D1_RECT_F tb = D2D1::RectF(LeftX(84), 8, LeftX(120), 44);
+        Fill(tb, Rgb(255, 255, 255, 0.16f), 18); IconSidebar({ LeftX(102), 26 }, white); BarButton(tb);
         g_hits.push_back({ 3, 0, tb });
     } else {
     const bool dark = Dark();
@@ -307,7 +307,7 @@ void PaintGoldenWx() {
     if (!g_status.empty()) Text(g_status, g_tfSmall, D2D1::RectF(12, sz.height - 30, SBG - 10, sz.height - 8), gray);
     }  // g_side
     // "+" no conteúdo
-    float addX = g_side ? 297.f : 146.f;
+    float addX = g_side ? 297.f : LeftX(146.f);
     D2D1_RECT_F add = D2D1::RectF(addX - 18, 8, addX + 18, 44);
     Fill(add, Rgb(255, 255, 255, 0.16f), 18); IconPlus({ addX, 26 }, white);
     g_hits.push_back({ 2, 0, add }); BarButton(add);

@@ -107,7 +107,7 @@ void PaintGolden() {
     {
         std::wstring ed = Tr(L"Editar");
         float w = std::max(58.f, TextW(g_tfRow, ed) + 26);
-        D2D1_RECT_F r = D2D1::RectF(sz.width - 10 - w, 8, sz.width - 10, 44);
+        D2D1_RECT_F r = D2D1::RectF(sz.width - CapsW() - 10 - w, 8, sz.width - CapsW() - 10, 44);
         if (c) {  // sem cartão, sem "Editar"
             GlassButton(r, true);
             Text(ed, g_tfCenter, r, white);
@@ -169,8 +169,8 @@ void PaintGolden() {
         // barra lateral
         Fill(D2D1::RectF(0, 0, SBW, sz.height), dark ? Rgb(30, 30, 30) : Rgb(255, 255, 255));
         Fill(D2D1::RectF(SBW - 0.5f, 0, SBW, sz.height), dark ? Rgb(0, 0, 0, 0.5f) : Rgb(0, 0, 0, 0.12f));
-        D2D1_RECT_F sb = D2D1::RectF(114 - 18.5f, 26 - 18.5f, 114 + 18.5f, 26 + 18.5f);
-        GlassButton(sb, dark); IconSidebar({ 114, 26 }, text);
+        D2D1_RECT_F sb = D2D1::RectF(LeftX(114) - 18.5f, 26 - 18.5f, LeftX(114) + 18.5f, 26 + 18.5f);
+        GlassButton(sb, dark); IconSidebar({ LeftX(114), 26 }, text);
         g_hits.push_back({ 8, 0, sb }); BarButton(sb);
         D2D1_RECT_F add = D2D1::RectF(397 - 18.5f, 26 - 18.5f, 397 + 18.5f, 26 + 18.5f);
         GlassButton(add, dark); IconPlus({ 397, 26 }, text);
@@ -200,8 +200,8 @@ void PaintGolden() {
         rt->PopAxisAlignedClip();
         if (g_c.empty()) Text(Tr(L"Nenhum Contato"), g_tfCenter, D2D1::RectF(0, G_LIST, SBW, sz.height * 0.6f), gray);
     } else {
-        D2D1_RECT_F sb = D2D1::RectF(114 - 18.5f, 26 - 18.5f, 114 + 18.5f, 26 + 18.5f);
-        GlassButton(sb, true); IconSidebar({ 114, 26 }, white);
+        D2D1_RECT_F sb = D2D1::RectF(LeftX(114) - 18.5f, 26 - 18.5f, LeftX(114) + 18.5f, 26 + 18.5f);
+        GlassButton(sb, true); IconSidebar({ LeftX(114), 26 }, white);
         g_hits.push_back({ 8, 0, sb }); BarButton(sb);
     }
 }

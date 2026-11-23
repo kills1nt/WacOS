@@ -275,7 +275,7 @@ void PaintBarGolden(D2D1_SIZE_F sz, bool dark, D2D1_COLOR_F text, D2D1_COLOR_F g
     Fill(D2D1::RectF(SB, TB - 0.5f, sz.width, TB), dark ? Rgb(255, 255, 255, 0.10f) : Rgb(0, 0, 0, 0.09f));
     Text(head, g_tfTitleG, D2D1::RectF(SB + 20, 0, sz.width - 240, TB), dark ? Rgb(255, 255, 255, 0.85f) : Rgb(0, 0, 0, 0.75f));
     // busca em cápsula e o filtro
-    D2D1_RECT_F f = D2D1::RectF(sz.width - 8 - 141, 8, sz.width - 8, 44);
+    D2D1_RECT_F f = D2D1::RectF(sz.width - CapsW() - 8 - 141, 8, sz.width - CapsW() - 8, 44);
     GlassField(f, dark);
     IconSearch({ f.left + 18, 26 }, gray, 0.85f);
     std::wstring ph = g_view == 2 ? Tr(L"Buscar em Álbuns") : g_view == 1 ? Tr(L"Buscar em Artistas") : Tr(L"Buscar em Músicas");

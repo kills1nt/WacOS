@@ -318,7 +318,7 @@ void PaintTabsGolden(D2D1_SIZE_F sz, bool dark) {
         x += ws[i];
     }
     if (g_tab <= 1) {
-        D2D1_RECT_F add = D2D1::RectF(sz.width - 8 - 36, 8, sz.width - 8, 44);
+        D2D1_RECT_F add = D2D1::RectF(sz.width - CapsW() - 8 - 36, 8, sz.width - CapsW() - 8, 44);
         GlassButton(add, dark); IconPlus({ (add.left + add.right) / 2, 26 }, text);
         g_hits.push_back({ H_ADD, 0, add }); BarButton(add);
     }

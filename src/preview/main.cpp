@@ -749,7 +749,7 @@ void Paint() {
         };
         // da direita para a esquerda: imprimir, exportar, girar, marcar (redondos) e a cápsula −/ajustar/+
         int order[4] = { 6, 1, 2, 0 };
-        bx = W - 8;
+        bx = W - 8 - (semaforo::Wac() ? 3 * semaforo::CAP_W + 4 : 0.f);  // WacOS design: room for the caption buttons
         for (int k = 0; k < 4; k++) { auto& bt = g_btns[order[k]]; bt.r = D2D1::RectF(bx - 36, 8, bx, 44); glass(bt.r); bx -= 36 + 8; }
         D2D1_RECT_F cap = D2D1::RectF(bx - 108, 8, bx, 44);
         glass(cap);
@@ -758,7 +758,7 @@ void Paint() {
         g_btns[4].r = D2D1::RectF(cap.left + 72, 8, cap.left + 106, 44);
         bx = cap.left - 8;
         if (g_pdf && g_pages.size() > 1) {  // lateral (com ⌄): no fim da coluna, ou depois dos três botões sem ela
-            float sx = XS > 0 ? XS - 58 : 84;
+            float sx = XS > 0 ? XS - 58 : (semaforo::Wac() ? 12.f : 84.f);
             g_btns.push_back({ 0xE8A0, L"Barra Lateral", B_SIDE, D2D1::RectF(sx, 8, sx + 50, 44) });
             glass(g_btns.back().r);
         }
@@ -792,7 +792,7 @@ void Paint() {
         g_rt->DrawTextW(g, 1, g_tfIcon, bt.r, g_br);
     }
     g_br->SetColor(dark ? D2D1::ColorF(1, 1, 1, 0.92f) : D2D1::ColorF(0, 0, 0, 0.88f));
-    float tx = g_unified ? (XS > 0 ? XS + 12.f : g_pdf && g_pages.size() > 1 ? 146.f : 96.f) : 16.f;  // macOS 27: depois dos três botões (ou da coluna)
+    float tx = g_unified ? (XS > 0 ? XS + 12.f : (g_pdf && g_pages.size() > 1 ? 146.f : 96.f) - (semaforo::Wac() ? 72.f : 0.f)) : 16.f;  // macOS 27: depois dos três botões (ou da coluna)
     g_rt->DrawTextW(name.c_str(), (UINT32)name.size(), g_tfTitle, D2D1::RectF(tx, 8, bx - 10, 28), g_br, D2D1_DRAW_TEXT_OPTIONS_CLIP);
     g_br->SetColor(dark ? D2D1::ColorF(1, 1, 1, 0.5f) : D2D1::ColorF(0, 0, 0, 0.5f));
     g_rt->DrawTextW(sub.c_str(), (UINT32)sub.size(), g_tfSub, D2D1::RectF(tx, 28, bx - 10, 46), g_br, D2D1_DRAW_TEXT_OPTIONS_CLIP);
@@ -856,7 +856,8 @@ LRESULT CALLBACK Proc(HWND h, UINT m, WPARAM w, LPARAM l) {
         POINT p{ GET_X_LPARAM(l), GET_Y_LPARAM(l) }; ScreenToClient(h, &p);
         float s = Sc(), x = p.x / s, y = p.y / s;
         if (!IsZoomed(h) && p.y < (int)(5 * s)) return HTTOP;
-        if (y >= TOOLH || x < 84) return HTCLIENT;
+        if (y >= TOOLH) return HTCLIENT;
+        { RECT cr; GetClientRect(h, &cr); if (semaforo::Wac() ? x >= cr.right / s - 3 * semaforo::CAP_W && y < 40 : x < 84) return HTCLIENT; }
         for (auto& b : g_btns) if (x >= b.r.left && x < b.r.right && y >= b.r.top && y < b.r.bottom) return HTCLIENT;
         return HTCAPTION;
     }

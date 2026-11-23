@@ -220,7 +220,7 @@ void PaintTop() {
             std::wstring name = ttl;
             size_t dot = name.find_last_of(L'.'); if (dot != std::wstring::npos && dot > 0) name = name.substr(0, dot);
             b->SetColor(D2D1::ColorF(1, 1, 1, 0.92f));
-            if (g_tfTop) rt2->DrawTextW(name.c_str(), (UINT32)name.size(), g_tfTop, D2D1::RectF(101.5f, 0, W - 12, GG_TOP), b, D2D1_DRAW_TEXT_OPTIONS_CLIP);
+            if (g_tfTop) rt2->DrawTextW(name.c_str(), (UINT32)name.size(), g_tfTop, D2D1::RectF(semaforo::Wac() ? 14.f : 101.5f, 0, W - (semaforo::Wac() ? 3 * semaforo::CAP_W + 8 : 12.f), GG_TOP), b, D2D1_DRAW_TEXT_OPTIONS_CLIP);
             b->Release();
         }
         rt2->EndDraw(); rt2->Release();
@@ -417,7 +417,7 @@ LRESULT CALLBACK Proc(HWND h, UINT m, WPARAM w, LPARAM l) {
                     wchar_t ttl[512] = {}; GetWindowTextW(h, ttl, 512);
                     std::wstring name = ttl;
                     size_t dot = name.find_last_of(L'.'); if (dot != std::wstring::npos && dot > 0) name = name.substr(0, dot);
-                    if (g_tfTop) rt2->DrawTextW(name.c_str(), (UINT32)name.size(), g_tfTop, D2D1::RectF(101.5f, 0, W - 12, GG_TOP), b, D2D1_DRAW_TEXT_OPTIONS_CLIP);
+                    if (g_tfTop) rt2->DrawTextW(name.c_str(), (UINT32)name.size(), g_tfTop, D2D1::RectF(semaforo::Wac() ? 14.f : 101.5f, 0, W - (semaforo::Wac() ? 3 * semaforo::CAP_W + 8 : 12.f), GG_TOP), b, D2D1_DRAW_TEXT_OPTIONS_CLIP);
                     b->Release();
                 }
                 rt2->EndDraw(); rt2->Release();

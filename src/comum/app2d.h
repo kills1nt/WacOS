@@ -126,6 +126,11 @@ inline bool In(D2D1_RECT_F r, float x, float y) { return x >= r.left && x < r.ri
 inline float BAR = 0;          // 0: barra comum do Windows (Sequoia/Tahoe)
 inline float barWanted = 0;    // o app que já tem o layout do macOS 27 pede (52) antes do CreateMain
 inline std::vector<D2D1_RECT_F> barButtons;
+inline D2D1_SIZE_F Size();
+// WacOS design in the unified bar: the Windows caption buttons take CapsW() on the right, and the traffic-light gap
+// on the left is gone — LeftX(84) moves an item that sat after the lights back to the left edge
+inline float CapsW() { return semaforo::Wac() && BAR > 0 ? 3 * semaforo::CAP_W + 4 : 0.f; }
+inline float LeftX(float x) { return semaforo::Wac() && BAR > 0 ? x - 72 : x; }
 inline void BarButton(D2D1_RECT_F r) { barButtons.push_back(r); }
 inline LRESULT CALLBACK UnifiedSub(HWND h, UINT m, WPARAM w, LPARAM l, UINT_PTR, DWORD_PTR) {
     if (m == WM_NCCALCSIZE && w) {  // tira só a barra de cima; as bordas de redimensionar continuam
@@ -142,7 +147,8 @@ inline LRESULT CALLBACK UnifiedSub(HWND h, UINT m, WPARAM w, LPARAM l, UINT_PTR,
         POINT p{ GET_X_LPARAM(l), GET_Y_LPARAM(l) }; ScreenToClient(h, &p);
         float s = GetDpiForWindow(h) / 96.f, x = p.x / s, y = p.y / s;
         if (!IsZoomed(h) && p.y < (int)(5 * s)) return HTTOP;
-        if (y >= BAR || x < (BAR > 40 ? 84 : 72)) return HTCLIENT;
+        if (y >= BAR) return HTCLIENT;
+        if (semaforo::Wac() ? x >= Size().width - 3 * semaforo::CAP_W && y < 40 : x < (BAR > 40 ? 84 : 72)) return HTCLIENT;
         for (auto& b : barButtons) if (x >= b.left && x < b.right && y >= b.top && y < b.bottom) return HTCLIENT;
         return HTCAPTION;
     }
