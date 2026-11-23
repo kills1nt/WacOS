@@ -215,6 +215,8 @@ static bool PickerShows(bool dir, const std::wstring& name) {
 static bool g_searching;
 static std::wstring CurrentTitle();
 static bool g_searchFocus;
+static bool g_addrFocus;      // WacOS design: the address field (full path) is being edited
+static TextField g_addr;
 static TextField g_rename;
 static int g_renameIdx = -1;
 static bool g_caretOn = true;
@@ -827,6 +829,9 @@ static bool Golden();
 static bool Wac() { return g_tahoe && tahoe::Wac(); }
 // WacOS design: Windows caption buttons at the top right, 46 pt wide over the toolbar height (close at the edge)
 const float CAP_W = 46;
+static D2D1_RECT_F ToolRect(int k);
+// WacOS design: the address field after the arrows — the full path, selectable and editable like Explorer's
+static D2D1_RECT_F AddrRect();
 // macOS 27 Golden Gate: os quatro modos de visualização voltam a ficar abertos numa cápsula (se couber)
 static bool WideToolbar() { return Golden() ? ClientDip().width - Lay::SIDEBAR_W >= 560 : !g_tahoe && ClientDip().width - Lay::SIDEBAR_W >= 650; }  // estreita: seletor de visão vira um botão (650 = botões da direita + voltar/avançar + um pedaço do título)
 
@@ -931,6 +936,12 @@ static D2D1_RECT_F ToolRect(int k) {
     r.top += 0.8f; r.bottom -= 0.8f;
     return r;
 }
+
+static D2D1_RECT_F AddrRect() {
+    float l = ToolRect(TB_FWD).right + 10, r = ToolRect(TB_V_ICONS).left - 12;
+    return { l, Lay::TOOL_CY - 16, std::max(l + 60, r), Lay::TOOL_CY + 16 };
+}
+static std::wstring AddrText() { return g_folder.empty() ? CurrentTitle() : g_folder; }
 
 static int HitTool(D2D1_POINT_2F p) {
     for (int k = 0; k < TB_COUNT; k++) if (In(ToolRect(k), p)) return k;
@@ -2867,6 +2878,29 @@ static void DrawToolbar(ID2D1DeviceContext* dc, const Palette& pal, ID2D1SolidCo
             if (gs) gs->Release();
             br->SetColor(D2D1::ColorF(0, 0, 0, 0.45f));
             dc->DrawRoundedRectangle(D2D1::RoundedRect(D2D1::RectF(pr.left + 0.5f, pr.top + 0.5f, pr.right - 0.5f, pr.bottom - 0.5f), 4.5f, 4.5f), br, 1);
+        }
+    } else if (Wac()) {
+        auto ar = AddrRect();
+        br->SetColor(g_addrFocus ? (g_dark ? D2D1::ColorF(0, 0, 0, 0.30f) : D2D1::ColorF(1, 1, 1, 1)) : (g_dark ? D2D1::ColorF(1, 1, 1, 0.06f) : D2D1::ColorF(0, 0, 0, 0.045f)));
+        dc->FillRoundedRectangle(D2D1::RoundedRect(ar, 8, 8), br);
+        if (g_addrFocus) {  // focused: a thin accent underline, like a Windows text box
+            br->SetColor(pal.accent);
+            dc->PushAxisAlignedClip(D2D1::RectF(ar.left, ar.bottom - 2, ar.right, ar.bottom), D2D1_ANTIALIAS_MODE_ALIASED);
+            dc->FillRoundedRectangle(D2D1::RoundedRect(ar, 8, 8), br);
+            dc->PopAxisAlignedClip();
+        }
+        DrawFolder(dc, D2D1::RectF(ar.left + 10, Lay::TOOL_CY - 8, ar.left + 26, Lay::TOOL_CY + 8), 0, br);
+        D2D1_RECT_F tr{ ar.left + 34, ar.top, ar.right - 10, ar.bottom };
+        if (g_addrFocus) {
+            ID2D1SolidColorBrush *sel = nullptr, *txt = nullptr;
+            dc->CreateSolidColorBrush(D2D1::ColorF(pal.accent.r, pal.accent.g, pal.accent.b, 0.35f), &sel);
+            dc->CreateSolidColorBrush(pal.text, &txt);
+            g_addr.Draw(dc, g_tfSearch, tr, txt, sel, txt, g_caretOn, false);
+            sel->Release(); txt->Release();
+        } else {
+            std::wstring t = AddrText();
+            br->SetColor(pal.text);
+            dc->DrawTextW(t.c_str(), (UINT32)t.size(), g_tfSearch, tr, br, D2D1_DRAW_TEXT_OPTIONS_CLIP);
         }
     } else {
     // título; a pastinha só aparece com o mouse em cima (como no Sequoia) e empurra o nome
@@ -6405,6 +6439,26 @@ static bool HandleKey(UINT vk) {
     if (ctrl && shift && vk == 'G') { GoOpen(true); return true; }
     if (g_pick.on && !g_searchFocus && vk == VK_RETURN) { PickerAccept(-1); return true; }
     if (g_pick.on && !g_searchFocus && vk == VK_ESCAPE && !g_ql && !g_viewOpts) { PickerCancel(); return true; }
+    if (g_addrFocus) {
+        if (vk == VK_ESCAPE) { g_addrFocus = false; Invalidate(); return true; }
+        if (vk == VK_RETURN) {
+            std::wstring t = g_addr.text;
+            while (!t.empty() && (t.back() == L' ' || t.back() == L'"')) t.pop_back();
+            while (!t.empty() && (t[0] == L' ' || t[0] == L'"')) t.erase(0, 1);
+            wchar_t ex[MAX_PATH * 2] = {}; ExpandEnvironmentStringsW(t.c_str(), ex, MAX_PATH * 2); t = ex;
+            DWORD a = GetFileAttributesW(t.c_str());
+            g_addrFocus = false;
+            if (a != INVALID_FILE_ATTRIBUTES && (a & FILE_ATTRIBUTE_DIRECTORY)) Navigate(t);
+            else if (a != INVALID_FILE_ATTRIBUTES) ShellExecuteW(g_hwnd, L"open", t.c_str(), nullptr, Parent(t).c_str(), SW_SHOWNORMAL);
+            else if (!t.empty()) ShellExecuteW(g_hwnd, L"open", t.c_str(), nullptr, nullptr, SW_SHOWNORMAL);  // shell:, URLs...
+            Invalidate();
+            return true;
+        }
+        g_addr.OnKey(vk, shift, ctrl);
+        g_caretOn = true;
+        Invalidate();
+        return true;
+    }
     if (g_searchFocus) {
         if (vk == VK_ESCAPE) { if (!g_search.text.empty()) { g_search.SetText(L"", false); OnSearchChanged(); } else FocusSearch(false); Invalidate(); return true; }
         if (vk == VK_RETURN) RunSearch();  // Enter busca na hora
@@ -6529,12 +6583,13 @@ static LRESULT HitTestNC(HWND h, LPARAM l) {
     }
     D2D1_POINT_2F d = ToDip(p.x, p.y);
     if (g_ql && In(QlPanel(), d)) return HTCLIENT;  // o Quick Look fica por cima da barra
+    if (Wac() && In(AddrRect(), d)) return HTCLIENT;
     if (d.y < Lay::TOOLBAR_H && !OverLightsArea(d) && HitTool(d) < 0 && HitTab(d) < 0 && !(Wac() && In(TabPlusRect(), d))) return HTCAPTION;  // arrastar a janela
     return HTCLIENT;
 }
 
 static bool OverTitle(D2D1_POINT_2F p) {
-    if (p.y >= Lay::TOOLBAR_H) return false;
+    if (p.y >= Lay::TOOLBAR_H || Wac()) return false;
     float tx = ToolRect(TB_FWD).right + 12, w = 120;
     std::wstring t = CurrentTitle();
     IDWriteTextLayout* tl = nullptr;
@@ -6863,6 +6918,16 @@ static LRESULT CALLBACK WndProc(HWND h, UINT m, WPARAM w, LPARAM l) {
             if (In(RenameRect(), p)) { g_rename.Click(g_tfRename, p, (w & MK_SHIFT) != 0); Invalidate(); return 0; }
             EndRename(true);
         }
+        if (Wac() && In(AddrRect(), p)) {  // the address field: first click selects the whole path, then places the caret
+            if (!g_addrFocus) {
+                g_addrFocus = true; g_searchFocus = false;
+                g_addr.SetText(AddrText(), true);
+                g_caretOn = true; SetTimer(h, T_CARET, 530, nullptr);
+            } else g_addr.Click(g_tfSearch, p, (w & MK_SHIFT) != 0);
+            Invalidate();
+            return 0;
+        }
+        if (g_addrFocus) { g_addrFocus = false; Invalidate(); }
         if (OverSideEdge(p) && !g_ql) { g_sideResize = true; SetCapture(h); return 0; }  // arrasta a borda da barra lateral
         int light = HitLight(p);
         if (light >= 0) { g_pressLight = light; SetCapture(h); return 0; }
@@ -7099,6 +7164,7 @@ static LRESULT CALLBACK WndProc(HWND h, UINT m, WPARAM w, LPARAM l) {
         else if (g_renameIdx >= 0) { g_rename.OnChar((wchar_t)w); Invalidate(); }
         else if (g_pickNameFocus) { g_pickName.OnChar((wchar_t)w); Invalidate(); }
         else if (g_searchFocus) { g_search.OnChar((wchar_t)w); OnSearchChanged(); Invalidate(); }
+        else if (g_addrFocus) { if (GetKeyState(VK_CONTROL) >= 0) g_addr.OnChar((wchar_t)w); Invalidate(); }
         else if (GetKeyState(VK_CONTROL) >= 0 && w != L' ') TypeAhead((wchar_t)w);  // espaço é o Quick Look
         return 0;
     case WM_TIMER:
