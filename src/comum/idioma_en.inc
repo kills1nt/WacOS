@@ -1638,3 +1638,5 @@
 { L"Opacidade do vidro da ilha", L"Island glass opacity" },
 { L"%ls livres de %ls", L"%ls free of %ls" },
 { L"Corpo da ilha", L"Island body" },
+{ L"Mostrar o Dock no monitor onde o ponteiro encosta embaixo", L"Show the Dock on the display where the pointer hits the bottom edge" },
+{ L"Avisar quando a memória acabar", L"Warn when memory runs out" },

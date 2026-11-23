@@ -1632,3 +1632,5 @@
 { L"Opacidade do vidro da ilha", L"Непрозорість скла острівця" },
 { L"%ls livres de %ls", L"%ls вільно з %ls" },
 { L"Corpo da ilha", L"Корпус острівця" },
+{ L"Mostrar o Dock no monitor onde o ponteiro encosta embaixo", L"Показувати Dock на моніторі, де курсор торкається нижнього краю" },
+{ L"Avisar quando a memória acabar", L"Попереджати, коли закінчується пам'ять" },

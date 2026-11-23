@@ -1,0 +1,475 @@
+<!doctype html>
+<html lang="uk">
+<head>
+<meta charset="utf-8">
+<title>WacOS — макети рескіну</title>
+<style>
+:root{
+  --accent:#b46ad1; --accent-ink:#fff;
+  --bg:#0f0e12; --wall:radial-gradient(120% 90% at 15% 10%,#3a2340 0,#1a1420 45%,#0d0c10 100%);
+  --mica:#202024; --mica-2:#2a2a2f; --layer:rgba(255,255,255,.045); --layer-2:rgba(255,255,255,.07);
+  --stroke:rgba(255,255,255,.08); --stroke-2:rgba(255,255,255,.13);
+  --ink:#f3f2f5; --ink-2:rgba(243,242,245,.66); --ink-3:rgba(243,242,245,.42);
+  --r-win:10px; --r-ctl:6px; --r-pane:8px;
+  --shadow:0 18px 50px rgba(0,0,0,.55),0 2px 8px rgba(0,0,0,.35);
+  --font:"Segoe UI Variable Text","Segoe UI Variable","Segoe UI",sans-serif;
+  --disp:"Segoe UI Variable Display","Segoe UI Variable","Segoe UI",sans-serif;
+  --ico:"Segoe Fluent Icons","Segoe MDL2 Assets";
+}
+:root.light{
+  --mica:#f3f1f5; --mica-2:#fbfafc; --layer:rgba(0,0,0,.035); --layer-2:rgba(0,0,0,.06);
+  --stroke:rgba(0,0,0,.08); --stroke-2:rgba(0,0,0,.12);
+  --ink:#1b1a1f; --ink-2:rgba(27,26,31,.66); --ink-3:rgba(27,26,31,.42);
+  --wall:radial-gradient(120% 90% at 15% 10%,#e9d6ef 0,#d9d0e6 45%,#c9c4d6 100%);
+}
+*{box-sizing:border-box;margin:0}
+body{background:var(--bg);color:var(--ink);font:14px/1.4 var(--font);padding:40px 48px 80px}
+:root.light body{background:#e7e4ec}
+i.g{font-family:var(--ico);font-style:normal;font-size:16px;line-height:1;display:inline-block}
+h1{font:600 34px var(--disp);letter-spacing:-.01em}
+h2{font:600 22px var(--disp);margin:56px 0 6px}
+.lede{color:var(--ink-2);max-width:760px;margin-top:8px}
+.note{color:var(--ink-3);font-size:12.5px;margin:0 0 18px;max-width:760px}
+
+/* ---------- tweaks ---------- */
+.tweaks{position:fixed;right:18px;top:18px;z-index:9;background:var(--mica-2);border:1px solid var(--stroke-2);border-radius:var(--r-pane);padding:10px 12px;display:flex;gap:10px;align-items:center;box-shadow:var(--shadow);font-size:12px;color:var(--ink-2)}
+.tweaks button{border:0;width:18px;height:18px;border-radius:50%;cursor:pointer;outline:2px solid transparent;outline-offset:2px}
+.tweaks button.on{outline-color:var(--ink-2)}
+.tweaks .seg{background:var(--layer-2);border-radius:var(--r-ctl);padding:3px 8px;cursor:pointer;color:var(--ink)}
+
+/* ---------- spec row ---------- */
+.spec{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-top:18px}
+.spec>div{background:var(--layer);border:1px solid var(--stroke);border-radius:var(--r-pane);padding:14px}
+.spec b{display:block;font-weight:600;margin-bottom:6px}
+.spec p{color:var(--ink-2);font-size:12.5px}
+
+/* ---------- window ---------- */
+.win{background:var(--mica);border:1px solid var(--stroke-2);border-radius:var(--r-win);box-shadow:var(--shadow);overflow:hidden;display:flex;flex-direction:column;position:relative}
+.tb{height:40px;display:flex;align-items:center;gap:8px;padding-left:12px;flex:none}
+.tb .app{width:16px;height:16px;border-radius:4px;flex:none}
+.tb .t{font-size:12px;color:var(--ink-2);flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cap{display:flex;align-self:stretch}
+.cap span{width:46px;display:grid;place-items:center;font-family:var(--ico);font-size:10px;color:var(--ink-2)}
+.cap span:hover{background:var(--layer-2)} .cap span.x:hover{background:#c42b1c;color:#fff}
+.tool{width:32px;height:32px;border-radius:var(--r-ctl);display:grid;place-items:center;color:var(--ink-2)}
+.tool:hover{background:var(--layer-2)}
+.search{height:30px;border-radius:var(--r-ctl);background:var(--layer-2);border:1px solid var(--stroke);border-bottom-color:var(--stroke-2);display:flex;align-items:center;gap:8px;padding:0 10px;color:var(--ink-3);font-size:12.5px;min-width:200px}
+.body{flex:1;display:flex;min-height:0}
+.nav{width:200px;padding:4px 8px 12px;flex:none}
+.nav .h{font-size:11.5px;color:var(--ink-3);padding:12px 10px 4px}
+.nav a{display:flex;align-items:center;gap:12px;height:34px;padding:0 10px;border-radius:var(--r-ctl);color:var(--ink);text-decoration:none;font-size:13px;position:relative}
+.nav a i{color:var(--ink-2);width:16px}
+.nav a:hover{background:var(--layer)}
+.nav a.on{background:var(--layer-2)}
+.nav a.on::before{content:"";position:absolute;left:0;top:9px;bottom:9px;width:3px;border-radius:2px;background:var(--accent)}
+.content{flex:1;background:var(--mica-2);border-top-left-radius:var(--r-pane);border-top:1px solid var(--stroke);border-left:1px solid var(--stroke);min-width:0;padding:16px 20px;overflow:hidden}
+:root:not(.light) .content{background:#28282d}
+.btn{height:32px;padding:0 14px;border-radius:var(--r-ctl);background:var(--layer-2);border:1px solid var(--stroke);display:inline-flex;align-items:center;gap:8px;font-size:13px}
+.btn.p{background:var(--accent);color:var(--accent-ink);border-color:transparent}
+.tog{width:40px;height:20px;border-radius:10px;background:var(--accent);position:relative;flex:none}
+.tog::after{content:"";position:absolute;right:4px;top:4px;width:12px;height:12px;border-radius:50%;background:#fff}
+.tog.off{background:transparent;border:1px solid var(--ink-3)}.tog.off::after{left:4px;right:auto;top:3px;background:var(--ink-2)}
+.card{background:var(--layer);border:1px solid var(--stroke);border-radius:var(--r-pane)}
+.row{display:flex;align-items:center;gap:12px;padding:12px 16px;border-bottom:1px solid var(--stroke)}
+.row:last-child{border-bottom:0}
+.row .l{flex:1}.row .s{font-size:12px;color:var(--ink-3)}
+.muted{color:var(--ink-2)}.dim{color:var(--ink-3)}
+
+/* ---------- desktop scene ---------- */
+.desk{position:relative;height:760px;border-radius:14px;overflow:hidden;background:var(--wall);border:1px solid var(--stroke)}
+.bar{position:absolute;left:0;right:0;top:0;height:32px;display:flex;align-items:center;padding:0 10px;gap:4px;font-size:13px;background:rgba(10,10,14,.35);backdrop-filter:blur(24px);border-bottom:1px solid rgba(255,255,255,.05)}
+:root.light .bar{background:rgba(255,255,255,.4)}
+.bar .m{padding:4px 10px;border-radius:var(--r-ctl)}
+.bar .m.b{font-weight:600}
+.bar .m:hover{background:var(--layer-2)}
+.bar .sp{flex:1}
+.bar .tray{display:flex;gap:2px;align-items:center}
+.bar .tray i{width:28px;height:24px;display:grid;place-items:center;border-radius:var(--r-ctl);font-size:14px}
+.logo{width:28px;height:24px;display:grid;place-items:center}
+.logo b{width:16px;height:16px;border-radius:5px;background:linear-gradient(135deg,var(--ink),var(--ink-2));-webkit-mask:radial-gradient(circle at 50% 42%,#000 38%,transparent 40%),linear-gradient(#000 0 0) 50% 100%/70% 30% no-repeat}
+.island{position:absolute;left:50%;top:4px;transform:translateX(-50%);height:26px;padding:0 14px;border-radius:13px;background:#000;display:flex;align-items:center;gap:10px;font-size:12px;color:#fff;box-shadow:0 0 0 1px rgba(255,255,255,.06)}
+.island .art{width:16px;height:16px;border-radius:4px;background:linear-gradient(135deg,#f0a04b,#c8326b)}
+.island .eq{display:flex;gap:2px;align-items:center;height:12px}
+.island .eq s{width:3px;border-radius:2px;background:#f0a04b;display:block}
+.dock{position:absolute;left:50%;bottom:14px;transform:translateX(-50%);display:flex;align-items:flex-end;gap:6px;padding:8px 10px 10px;border-radius:18px;background:rgba(28,26,32,.72);backdrop-filter:blur(30px) saturate(1.3);border:1px solid rgba(255,255,255,.1);box-shadow:0 12px 40px rgba(0,0,0,.45)}
+:root.light .dock{background:rgba(250,248,252,.7);border-color:rgba(0,0,0,.08)}
+.dock .ic{width:48px;height:48px;border-radius:12px;position:relative;display:grid;place-items:center;font-family:var(--ico);font-size:22px;color:#fff}
+.dock .ic::after{content:"";position:absolute;bottom:-7px;left:50%;transform:translateX(-50%);height:3px;width:0;border-radius:2px;background:var(--ink-3)}
+.dock .ic.run::after{width:6px}.dock .ic.act::after{width:16px;background:var(--accent)}
+.dock .sep{width:1px;height:40px;background:var(--stroke-2);margin:0 4px 4px}
+
+/* icon tiles: one family — soft squircle-free rounded squares, single glyph, tonal gradient */
+.t-files{background:linear-gradient(160deg,#5aa8ff,#2b62d9)}
+.t-set{background:linear-gradient(160deg,#8f8f99,#4c4c55)}
+.t-music{background:linear-gradient(160deg,#ff6a7d,#d8264a)}
+.t-notes{background:linear-gradient(160deg,#ffd45c,#eaa21c)}
+.t-cal{background:linear-gradient(160deg,#ff8a5b,#e5532c)}
+.t-photo{background:linear-gradient(160deg,#ffb35c,#e05ab5)}
+.t-term{background:linear-gradient(160deg,#3b3b42,#17171b)}
+.t-calc{background:linear-gradient(160deg,#ff9f43,#e9701b)}
+.t-mon{background:linear-gradient(160deg,#59d18a,#21995a)}
+.t-wx{background:linear-gradient(160deg,#59b9ff,#3a73e0)}
+.t-rem{background:linear-gradient(160deg,#f5f5f7,#cfcfd6);color:#d33!important}
+.t-clock{background:linear-gradient(160deg,#2e2e35,#0f0f12)}
+.t-hermes{background:linear-gradient(160deg,#c48be0,#7b3fa6)}
+.t-con{background:linear-gradient(160deg,#c9a77e,#8f6a43)}
+.t-text{background:linear-gradient(160deg,#eef0f4,#c6cad3);color:#333!important}
+.t-tm{background:linear-gradient(160deg,#4ad3c2,#1b8f86)}
+.t-qt{background:linear-gradient(160deg,#5a5a66,#26262d)}
+.t-prev{background:linear-gradient(160deg,#7fd0ff,#3a8ee6)}
+.t-shot{background:linear-gradient(160deg,#9a9aa5,#55555e)}
+
+/* finder */
+.files-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:6px;margin-top:14px}
+.fi{display:flex;flex-direction:column;align-items:center;gap:6px;padding:10px 4px;border-radius:var(--r-ctl);font-size:12px;text-align:center}
+.fi.sel{background:color-mix(in srgb,var(--accent) 22%,transparent);outline:1px solid color-mix(in srgb,var(--accent) 50%,transparent)}
+.fold{width:56px;height:44px;border-radius:6px;background:linear-gradient(#ffd56a,#f2b733);position:relative}
+.fold::before{content:"";position:absolute;left:0;top:-5px;width:24px;height:8px;border-radius:4px 4px 0 0;background:#e9a924}
+.doc{width:40px;height:50px;border-radius:5px;background:#f6f6f8;position:relative;box-shadow:0 1px 2px rgba(0,0,0,.3)}
+.doc::after{content:attr(data-x);position:absolute;bottom:6px;left:0;right:0;font:700 8px var(--font);color:var(--accent)}
+.tabs{display:flex;gap:2px;align-self:stretch;align-items:flex-end;flex:1;min-width:0}
+.tab{height:32px;padding:0 12px;border-radius:8px 8px 0 0;display:flex;align-items:center;gap:8px;font-size:12px;color:var(--ink-2);max-width:200px}
+.tab.on{background:var(--mica-2);color:var(--ink);border:1px solid var(--stroke);border-bottom:0}
+:root:not(.light) .tab.on{background:#28282d}
+.crumbs{display:flex;align-items:center;gap:4px;font-size:13px;color:var(--ink-2)}
+.crumbs b{font-weight:600;color:var(--ink)}
+.disk{display:flex;align-items:center;gap:12px;padding:12px;border-radius:var(--r-pane);background:var(--layer);border:1px solid var(--stroke)}
+.meter{height:6px;border-radius:3px;background:var(--layer-2);overflow:hidden}.meter b{display:block;height:100%;background:var(--accent);border-radius:3px}
+.meter b.warn{background:#f0a04b}
+
+/* gallery grid */
+.gal{display:grid;grid-template-columns:repeat(12,1fr);gap:22px}
+.s4{grid-column:span 4}.s5{grid-column:span 5}.s6{grid-column:span 6}.s7{grid-column:span 7}.s8{grid-column:span 8}.s3{grid-column:span 3}.s12{grid-column:span 12}
+.cap-l{font-size:12px;color:var(--ink-3);margin:8px 2px 0}
+
+/* panels */
+.panel{background:rgba(30,28,34,.82);backdrop-filter:blur(30px);border:1px solid rgba(255,255,255,.1);border-radius:14px;box-shadow:var(--shadow);padding:12px}
+:root.light .panel{background:rgba(250,248,252,.86);border-color:rgba(0,0,0,.08)}
+.qa{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.qa div{height:64px;border-radius:var(--r-pane);background:var(--layer-2);border:1px solid var(--stroke);padding:8px 10px;display:flex;flex-direction:column;justify-content:space-between;font-size:12px}
+.qa div.on{background:var(--accent);color:var(--accent-ink);border-color:transparent}
+.slider{display:flex;align-items:center;gap:10px;padding:10px 4px}
+.slider .tr{flex:1;height:4px;border-radius:2px;background:var(--layer-2);position:relative}
+.slider .tr b{position:absolute;left:0;top:0;bottom:0;border-radius:2px;background:var(--accent)}
+.slider .tr b::after{content:"";position:absolute;right:-9px;top:-7px;width:18px;height:18px;border-radius:50%;background:var(--mica-2);border:4px solid var(--accent);box-sizing:border-box}
+.menu{width:290px;padding:4px}
+.menu div{height:30px;border-radius:var(--r-ctl);display:flex;align-items:center;gap:12px;padding:0 10px;font-size:13px}
+.menu div.hl{background:var(--layer-2)}
+.menu hr{border:0;border-top:1px solid var(--stroke);margin:4px 6px}
+.menu kbd{margin-left:auto;font:12px var(--font);color:var(--ink-3)}
+</style>
+</head>
+<body>
+<div class="tweaks"><span>Акцент</span>
+  <button style="background:#b46ad1" class="on" data-a="#b46ad1"></button>
+  <button style="background:#4c9dff" data-a="#4c9dff"></button>
+  <button style="background:#2fb67c" data-a="#2fb67c"></button>
+  <button style="background:#f08a3c" data-a="#f08a3c"></button>
+  <span class="seg" id="mode">Світла</span>
+</div>
+
+<h1>WacOS — рескін</h1>
+<p class="lede">Напрям: не копія macOS, а Windows 11 з охайністю Mac. Вікна з кутами 10 px і поверхнею Mica, кнопки вікна праворуч у порядку Windows, панель навігації ліворуч із пігулкою-індикатором. Dock, острівець і смуга меню лишаються, але звучать по-віндовсівськи. Шрифт Segoe UI Variable, іконки Segoe Fluent.</p>
+
+<div class="spec">
+  <div><b>Кути</b><p>Вікно 10, панелі й картки 8, кнопки й поля 6, Dock 18, острівець — повна капсула. Без «таблеток» на всьому підряд.</p></div>
+  <div><b>Заголовок вікна</b><p>40 px. Ліворуч іконка й назва (або вкладки), інструменти й пошук у тому ж рядку, праворуч −, □, × по 46 px; × червоніє при наведенні.</p></div>
+  <div><b>Поверхні</b><p>Mica як фон вікна, вміст — на трохи світлішому шарі з закругленим лівим верхнім кутом (як у Параметрах Windows і Hermes). Скло лише в Dock і панелях.</p></div>
+  <div><b>Акцент</b><p>Один колір (зараз твій фіолетовий): вибране, перемикачі, індикатор активної програми в Dock, повзунки. Перемикається вгорі праворуч.</p></div>
+</div>
+
+<!-- ============ DESKTOP ============ -->
+<h2>Робочий стіл</h2>
+<p class="note">Смуга меню без змін за структурою, але меню програм виглядають як Windows-меню. Острівець чорний. Dock — плаваюча панель з індикаторами Windows 11 (крапка — запущена, довша риска в кольорі акценту — активна).</p>
+<div class="desk">
+  <div class="bar">
+    <div class="logo"><b></b></div>
+    <div class="m b">Файли</div><div class="m">Файл</div><div class="m">Правка</div><div class="m">Вигляд</div><div class="m">Перейти</div><div class="m">Вікно</div>
+    <div class="sp"></div>
+    <div class="tray"><i class="g">&#xE774;</i><i class="g">&#xE701;</i><i class="g">&#xE767;</i><i class="g">&#xEA8F;</i><i class="g">&#xE721;</i></div>
+  </div>
+  <div class="island"><span class="art"></span><span>Лис 23&nbsp;&nbsp;<b>19:24</b></span><span class="eq"><s style="height:6px"></s><s style="height:11px"></s><s style="height:8px"></s><s style="height:4px"></s></span></div>
+
+  <div class="win" style="position:absolute;left:70px;top:70px;width:900px;height:520px">
+    <div class="tb">
+      <div class="tabs">
+        <div class="tab on"><i class="g" style="font-size:13px">&#xE8B7;</i>Завантаження</div>
+        <div class="tab"><i class="g" style="font-size:13px">&#xE8B7;</i>Projects</div>
+        <span class="tool" style="width:28px;height:28px;margin-bottom:2px"><i class="g" style="font-size:12px">&#xE710;</i></span>
+      </div>
+      <div class="cap"><span>&#xE921;</span><span>&#xE922;</span><span class="x">&#xE8BB;</span></div>
+    </div>
+    <div style="display:flex;align-items:center;gap:6px;padding:0 12px 8px">
+      <span class="tool"><i class="g">&#xE72B;</i></span><span class="tool dim"><i class="g">&#xE72A;</i></span><span class="tool"><i class="g">&#xE74A;</i></span>
+      <div class="crumbs" style="margin:0 8px"><span>beakk</span><i class="g" style="font-size:9px">&#xE76C;</i><b>Завантаження</b></div>
+      <div style="flex:1"></div>
+      <span class="tool"><i class="g">&#xF0E2;</i></span><span class="tool"><i class="g">&#xE8FD;</i></span>
+      <div class="search"><i class="g" style="font-size:13px">&#xE721;</i>Пошук у Завантаження</div>
+    </div>
+    <div class="body">
+      <nav class="nav">
+        <a><i class="g">&#xE80F;</i>beakk</a>
+        <a><i class="g">&#xE7F4;</i>Робочий стіл</a>
+        <a class="on"><i class="g">&#xE896;</i>Завантаження</a>
+        <a><i class="g">&#xE8A5;</i>Документи</a>
+        <a><i class="g">&#xEB9F;</i>Зображення</a>
+        <div class="h">Диски</div>
+        <a><i class="g">&#xEDA2;</i><span style="flex:1">Windows (C:)</span><span class="meter" style="width:34px"><b style="width:71%"></b></span></a>
+        <a><i class="g">&#xEDA2;</i><span style="flex:1">Ігри (D:)</span><span class="meter" style="width:34px"><b class="warn" style="width:88%"></b></span></a>
+      </nav>
+      <div class="content">
+        <div style="display:flex;align-items:baseline;gap:10px"><b style="font:600 18px var(--disp)">Завантаження</b><span class="dim" style="font-size:12px">24 елементи · 186 ГБ вільно</span></div>
+        <div class="files-grid">
+          <div class="fi"><div class="fold"></div>Моди</div>
+          <div class="fi sel"><div class="fold"></div>Apollo</div>
+          <div class="fi"><div class="fold"></div>Screenshots</div>
+          <div class="fi"><div class="doc" data-x="PDF"></div>інвойс.pdf</div>
+          <div class="fi"><div class="doc" data-x="ZIP"></div>WacOS-1.4.zip</div>
+          <div class="fi"><div class="doc" data-x="EXE"></div>setup.exe</div>
+          <div class="fi"><div class="doc" data-x="PNG"></div>logo.png</div>
+          <div class="fi"><div class="doc" data-x="MKV"></div>серія-03.mkv</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="dock">
+    <div class="ic t-files act"><i class="g" style="font-size:22px">&#xE8B7;</i></div>
+    <div class="ic t-hermes run">H</div>
+    <div class="ic t-music run">&#xE8D6;</div>
+    <div class="ic t-notes">&#xE70B;</div>
+    <div class="ic t-cal">&#xE787;</div>
+    <div class="ic t-photo">&#xEB9F;</div>
+    <div class="ic t-term run">&#xE756;</div>
+    <div class="ic t-set">&#xE713;</div>
+    <div class="sep"></div>
+    <div class="ic t-shot">&#xE896;</div>
+    <div class="ic" style="background:var(--layer-2)">&#xE74D;</div>
+  </div>
+</div>
+
+<!-- ============ SYSTEM APPS ============ -->
+<h2>Системні програми</h2>
+<p class="note">Однаковий каркас: навігація ліворуч (де вона потрібна), заголовок сторінки на шарі вмісту, групи як картки з рядками. Нічого не центровано без потреби.</p>
+<div class="gal">
+
+  <!-- Settings -->
+  <div class="s7"><div class="win" style="height:440px">
+    <div class="tb"><span class="app t-set"></span><span class="t">Системні параметри</span><div class="cap"><span>&#xE921;</span><span>&#xE922;</span><span class="x">&#xE8BB;</span></div></div>
+    <div class="body">
+      <nav class="nav">
+        <div class="search" style="min-width:0;margin:0 2px 8px"><i class="g" style="font-size:13px">&#xE721;</i>Знайти</div>
+        <a><i class="g">&#xE701;</i>Мережа</a><a><i class="g">&#xE702;</i>Bluetooth</a><a class="on"><i class="g">&#xE771;</i>Вигляд</a>
+        <a><i class="g">&#xE7F4;</i>Dock і стіл</a><a><i class="g">&#xEA8F;</i>Сповіщення</a><a><i class="g">&#xE767;</i>Звук</a><a><i class="g">&#xE713;</i>Загальні</a>
+      </nav>
+      <div class="content">
+        <b style="font:600 20px var(--disp)">Вигляд</b>
+        <div class="card" style="margin-top:14px">
+          <div class="row"><div class="l">Тема<div class="s">Світла, темна або за розкладом</div></div><span class="btn">Темна <i class="g" style="font-size:10px">&#xE70D;</i></span></div>
+          <div class="row"><div class="l">Колір акценту</div><span style="display:flex;gap:6px"><b style="width:18px;height:18px;border-radius:50%;background:#b46ad1;outline:2px solid var(--ink-2);outline-offset:2px"></b><b style="width:18px;height:18px;border-radius:50%;background:#4c9dff"></b><b style="width:18px;height:18px;border-radius:50%;background:#2fb67c"></b><b style="width:18px;height:18px;border-radius:50%;background:#f08a3c"></b></span></div>
+          <div class="row"><div class="l">Розмивати смугу меню над розгорнутою програмою</div><span class="tog"></span></div>
+          <div class="row"><div class="l">Кнопки вікна праворуч<div class="s">Порядок Windows: згорнути, розгорнути, закрити</div></div><span class="tog"></span></div>
+        </div>
+        <div class="card" style="margin-top:12px">
+          <div class="row"><div class="l">Корпус острівця</div><span class="btn">Чорний <i class="g" style="font-size:10px">&#xE70D;</i></span></div>
+        </div>
+      </div>
+    </div>
+  </div><p class="cap-l">Системні параметри — сторінка як у Параметрах Windows, без iOS-списків.</p></div>
+
+  <!-- Control center + context menu -->
+  <div class="s5" style="display:flex;gap:16px;align-items:flex-start">
+    <div class="panel" style="width:300px">
+      <div class="qa">
+        <div class="on"><i class="g">&#xE701;</i><span>Wi‑Fi<br><span style="opacity:.75">Ethernet</span></span></div>
+        <div class="on"><i class="g">&#xE702;</i>Bluetooth</div>
+        <div><i class="g">&#xE708;</i>Зосередження</div>
+        <div><i class="g">&#xE793;</i>Темний режим</div>
+        <div><i class="g">&#xEE49;</i>Stage Manager</div>
+        <div><i class="g">&#xE722;</i>Знімок</div>
+      </div>
+      <div class="slider"><i class="g">&#xE706;</i><div class="tr"><b style="width:62%"></b></div></div>
+      <div class="slider"><i class="g">&#xE767;</i><div class="tr"><b style="width:40%"></b></div><span class="dim" style="font-size:12px">40</span></div>
+      <div style="display:flex;align-items:center;gap:10px;padding:8px 4px 2px;border-top:1px solid var(--stroke);margin-top:4px">
+        <span style="width:36px;height:36px;border-radius:6px;background:linear-gradient(135deg,#f0a04b,#c8326b)"></span>
+        <span style="flex:1;font-size:12px"><b>Ghost Town</b><br><span class="dim">Kanye West</span></span>
+        <i class="g">&#xE892;</i><i class="g" style="font-size:20px">&#xE769;</i><i class="g">&#xE893;</i>
+      </div>
+    </div>
+    <div class="panel menu">
+      <div><i class="g">&#xE8E5;</i>Відкрити</div><div class="hl"><i class="g">&#xE737;</i>Відкрити в новій вкладці<kbd>Ctrl+Enter</kbd></div>
+      <hr><div><i class="g">&#xE8C8;</i>Копіювати<kbd>Ctrl+C</kbd></div><div><i class="g">&#xE8C6;</i>Вирізати<kbd>Ctrl+X</kbd></div><div><i class="g">&#xE8AC;</i>Перейменувати<kbd>F2</kbd></div>
+      <hr><div><i class="g">&#xE946;</i>Властивості<kbd>Alt+Enter</kbd></div><div style="color:#ff7b72"><i class="g" style="color:#ff7b72">&#xE74D;</i>Видалити<kbd>Del</kbd></div>
+    </div>
+  </div>
+
+  <!-- Music -->
+  <div class="s8"><div class="win" style="height:400px">
+    <div class="tb"><span class="app t-music"></span><span class="t">Музика</span><div class="search" style="min-width:240px"><i class="g" style="font-size:13px">&#xE721;</i>Пошук у бібліотеці</div><div class="cap"><span>&#xE921;</span><span>&#xE922;</span><span class="x">&#xE8BB;</span></div></div>
+    <div class="body">
+      <nav class="nav" style="width:180px"><a class="on"><i class="g">&#xE80F;</i>Головна</a><a><i class="g">&#xE93C;</i>Альбоми</a><a><i class="g">&#xE77B;</i>Виконавці</a><a><i class="g">&#xE8D6;</i>Пісні</a><div class="h">Плейлисти</div><a><i class="g">&#xE90B;</i>Для поїздок</a><a><i class="g">&#xE90B;</i>Фокус</a></nav>
+      <div class="content" style="display:flex;flex-direction:column">
+        <b style="font:600 20px var(--disp)">Нещодавно додані</b>
+        <div style="display:flex;gap:14px;margin-top:12px">
+          <div style="width:120px"><div style="height:120px;border-radius:8px;background:linear-gradient(135deg,#f0a04b,#c8326b)"></div><div style="font-size:12.5px;margin-top:6px">Ye</div><div class="dim" style="font-size:12px">Kanye West</div></div>
+          <div style="width:120px"><div style="height:120px;border-radius:8px;background:linear-gradient(135deg,#3a6ee0,#1b2a5c)"></div><div style="font-size:12.5px;margin-top:6px">Kid A</div><div class="dim" style="font-size:12px">Radiohead</div></div>
+          <div style="width:120px"><div style="height:120px;border-radius:8px;background:linear-gradient(135deg,#2fb67c,#0e3b2b)"></div><div style="font-size:12.5px;margin-top:6px">Колос</div><div class="dim" style="font-size:12px">Go_A</div></div>
+        </div>
+        <div style="flex:1"></div>
+        <div class="card" style="display:flex;align-items:center;gap:14px;padding:10px 14px">
+          <span style="width:40px;height:40px;border-radius:6px;background:linear-gradient(135deg,#f0a04b,#c8326b)"></span>
+          <span style="width:180px;font-size:12.5px"><b>Ghost Town</b><br><span class="dim">Kanye West</span></span>
+          <i class="g">&#xE8B1;</i><i class="g">&#xE892;</i><span style="width:34px;height:34px;border-radius:50%;background:var(--ink);color:var(--mica);display:grid;place-items:center"><i class="g">&#xE769;</i></span><i class="g">&#xE893;</i>
+          <span class="dim" style="font-size:12px">1:42</span><div class="meter" style="flex:1"><b style="width:38%"></b></div><span class="dim" style="font-size:12px">4:31</span>
+        </div>
+      </div>
+    </div>
+  </div><p class="cap-l">Музика — плеєр унизу вікна, як у Media Player, а не в заголовку.</p></div>
+
+  <!-- Calculator -->
+  <div class="s4"><div class="win" style="height:400px">
+    <div class="tb"><span class="app t-calc"></span><span class="t">Калькулятор</span><div class="cap"><span>&#xE921;</span><span class="x">&#xE8BB;</span></div></div>
+    <div style="padding:6px 16px 0;text-align:right"><div class="dim" style="font-size:13px">1 280 × 12 =</div><div style="font:600 44px var(--disp)">15 360</div></div>
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:4px;padding:10px;flex:1">
+      <span class="btn" style="justify-content:center">C</span><span class="btn" style="justify-content:center">±</span><span class="btn" style="justify-content:center">%</span><span class="btn" style="justify-content:center">÷</span>
+      <span class="btn" style="justify-content:center;background:var(--mica-2)">7</span><span class="btn" style="justify-content:center;background:var(--mica-2)">8</span><span class="btn" style="justify-content:center;background:var(--mica-2)">9</span><span class="btn" style="justify-content:center">×</span>
+      <span class="btn" style="justify-content:center;background:var(--mica-2)">4</span><span class="btn" style="justify-content:center;background:var(--mica-2)">5</span><span class="btn" style="justify-content:center;background:var(--mica-2)">6</span><span class="btn" style="justify-content:center">−</span>
+      <span class="btn" style="justify-content:center;background:var(--mica-2)">1</span><span class="btn" style="justify-content:center;background:var(--mica-2)">2</span><span class="btn" style="justify-content:center;background:var(--mica-2)">3</span><span class="btn" style="justify-content:center">+</span>
+      <span class="btn" style="justify-content:center;background:var(--mica-2);grid-column:span 2">0</span><span class="btn" style="justify-content:center;background:var(--mica-2)">,</span><span class="btn p" style="justify-content:center">=</span>
+    </div>
+  </div><p class="cap-l">Калькулятор — прямокутні клавіші Windows, акцент лише на «=». Без кнопки розгортання.</p></div>
+
+  <!-- Notes -->
+  <div class="s6"><div class="win" style="height:360px">
+    <div class="tb"><span class="app t-notes"></span><span class="t">Нотатки</span><span class="tool"><i class="g">&#xE70F;</i></span><span class="tool"><i class="g">&#xE8D2;</i></span><div class="cap"><span>&#xE921;</span><span>&#xE922;</span><span class="x">&#xE8BB;</span></div></div>
+    <div class="body">
+      <div style="width:230px;padding:0 8px">
+        <div class="search" style="min-width:0;margin-bottom:8px"><i class="g" style="font-size:13px">&#xE721;</i>Пошук</div>
+        <div style="padding:8px 10px;border-radius:6px;background:var(--layer-2)"><b style="font-size:13px">Список рескіну</b><div class="dim" style="font-size:12px">Сьогодні · Dock, Файли, Параметри…</div></div>
+        <div style="padding:8px 10px"><b style="font-size:13px;font-weight:600">Покупки</b><div class="dim" style="font-size:12px">Вчора · кава, батарейки</div></div>
+        <div style="padding:8px 10px"><b style="font-size:13px;font-weight:600">kkh ідеї</b><div class="dim" style="font-size:12px">20 лис · субтитри для аніме</div></div>
+      </div>
+      <div class="content"><b style="font:600 20px var(--disp)">Список рескіну</b><p class="muted" style="margin-top:8px">☑ Dock — плаваюча панель<br>☑ Острівець чорний<br>☐ Файли — вкладки в заголовку<br>☐ Параметри — сторінки як у Windows</p></div>
+    </div>
+  </div><p class="cap-l">Нотатки — два стовпці, редактор на шарі вмісту.</p></div>
+
+  <!-- Activity monitor -->
+  <div class="s6"><div class="win" style="height:360px">
+    <div class="tb"><span class="app t-mon"></span><span class="t">Монітор активності</span><div class="search"><i class="g" style="font-size:13px">&#xE721;</i>Пошук процесу</div><div class="cap"><span>&#xE921;</span><span>&#xE922;</span><span class="x">&#xE8BB;</span></div></div>
+    <div style="display:flex;gap:4px;padding:0 12px 8px"><span class="btn p" style="height:28px">ЦП</span><span class="btn" style="height:28px">Пам'ять</span><span class="btn" style="height:28px">Диск</span><span class="btn" style="height:28px">Мережа</span><div style="flex:1"></div><span class="btn" style="height:28px"><i class="g" style="font-size:12px">&#xE711;</i>Завершити</span></div>
+    <div class="content" style="padding:0">
+      <div class="row dim" style="font-size:12px;padding:8px 16px"><span class="l">Назва</span><span style="width:70px;text-align:right">ЦП</span><span style="width:90px;text-align:right">Пам'ять</span></div>
+      <div class="row" style="padding:8px 16px;background:color-mix(in srgb,var(--accent) 18%,transparent)"><span class="l">Mod Organizer 2</span><span style="width:70px;text-align:right">12,4 %</span><span style="width:90px;text-align:right">15,2 ГБ</span></div>
+      <div class="row" style="padding:8px 16px"><span class="l">Dia</span><span style="width:70px;text-align:right">3,1 %</span><span style="width:90px;text-align:right">5,6 ГБ</span></div>
+      <div class="row" style="padding:8px 16px"><span class="l">Zen</span><span style="width:70px;text-align:right">1,8 %</span><span style="width:90px;text-align:right">2,4 ГБ</span></div>
+      <div class="row" style="padding:8px 16px"><span class="l">Spotify</span><span style="width:70px;text-align:right">0,6 %</span><span style="width:90px;text-align:right">1,2 ГБ</span></div>
+    </div>
+  </div><p class="cap-l">Монітор активності — таблиця як у Диспетчері завдань, вкладки-кнопки зверху.</p></div>
+
+  <!-- Calendar -->
+  <div class="s7"><div class="win" style="height:380px">
+    <div class="tb"><span class="app t-cal"></span><span class="t">Календар</span><span class="btn" style="height:28px">Сьогодні</span><span class="tool"><i class="g">&#xE76B;</i></span><span class="tool"><i class="g">&#xE76C;</i></span><div class="cap"><span>&#xE921;</span><span>&#xE922;</span><span class="x">&#xE8BB;</span></div></div>
+    <div class="content" style="padding:12px 16px">
+      <b style="font:600 20px var(--disp)">Листопад 2026</b>
+      <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-top:10px;font-size:12px">
+        <span class="dim">Пн</span><span class="dim">Вт</span><span class="dim">Ср</span><span class="dim">Чт</span><span class="dim">Пт</span><span class="dim">Сб</span><span class="dim">Нд</span>
+        <script>for(let d=1;d<=28;d++){document.write(`<div style="height:44px;border-radius:6px;padding:4px 6px;${d==23?'background:var(--accent);color:#fff':'background:var(--layer)'}">${d}${d==12?'<div style="margin-top:2px;font-size:10.5px;border-radius:3px;padding:0 4px;background:color-mix(in srgb,#2fb67c 30%,transparent)">Матч</div>':''}${d==25?'<div style="margin-top:2px;font-size:10.5px;border-radius:3px;padding:0 4px;background:color-mix(in srgb,#4c9dff 30%,transparent)">Реліз</div>':''}</div>`)}</script>
+      </div>
+    </div>
+  </div><p class="cap-l">Календар — сітка місяця, сьогодні в акценті, події як мітки.</p></div>
+
+  <!-- Weather -->
+  <div class="s5"><div class="win" style="height:380px;background:linear-gradient(170deg,#2a4f8f,#14213d)">
+    <div class="tb"><span class="app t-wx"></span><span class="t" style="color:#fff">Погода</span><div class="cap"><span style="color:#fff">&#xE921;</span><span style="color:#fff">&#xE922;</span><span class="x" style="color:#fff">&#xE8BB;</span></div></div>
+    <div style="padding:8px 22px;color:#fff">
+      <div style="font-size:15px">Київ</div><div style="font:300 64px var(--disp)">−2°</div><div style="opacity:.8">Хмарно · відчувається як −6°</div>
+      <div style="display:flex;gap:10px;margin-top:22px">
+        <script>[["Зараз","E753","−2°"],["21","E753","−3°"],["22","E706","−4°"],["23","E708","−5°"],["00","E708","−5°"],["01","E708","−6°"]].forEach(h=>document.write(`<div style="flex:1;text-align:center;padding:8px 0;border-radius:8px;background:rgba(255,255,255,.1);font-size:12px">${h[0]}<br><i class="g" style="margin:6px 0">&#x${h[1]};</i><br>${h[2]}</div>`))</script>
+      </div>
+    </div>
+  </div><p class="cap-l">Погода — єдина програма з власним фоном (небо), решта — Mica.</p></div>
+
+  <!-- Terminal -->
+  <div class="s6"><div class="win" style="height:300px;background:#0c0c0e">
+    <div class="tb"><div class="tabs"><div class="tab on" style="background:#18181b;border-color:#2a2a2e"><i class="g" style="font-size:13px">&#xE756;</i>pwsh</div><div class="tab"><i class="g" style="font-size:13px">&#xE756;</i>ssh hrateka</div><span class="tool" style="width:28px;height:28px;margin-bottom:2px"><i class="g" style="font-size:12px">&#xE710;</i></span></div><div class="cap"><span>&#xE921;</span><span>&#xE922;</span><span class="x">&#xE8BB;</span></div></div>
+    <pre style="flex:1;margin:0;padding:12px 16px;background:#18181b;font:13px Cascadia Code,Consolas,monospace;color:#d6d6dc;border-top-left-radius:8px">PS C:\Users\beakk\Projects\WacOS> <span style="color:#b46ad1">git</span> log --oneline -2
+4bdc0ae Island: black body like the notch
+d514834 Maximised windows can be dragged out
+PS C:\Users\beakk\Projects\WacOS> <span style="opacity:.6">▍</span></pre>
+  </div><p class="cap-l">Термінал — вкладки в заголовку, як у Windows Terminal.</p></div>
+
+  <!-- Photos -->
+  <div class="s6"><div class="win" style="height:300px">
+    <div class="tb"><span class="app t-photo"></span><span class="t">Фото</span><div class="search"><i class="g" style="font-size:13px">&#xE721;</i>Пошук</div><div class="cap"><span>&#xE921;</span><span>&#xE922;</span><span class="x">&#xE8BB;</span></div></div>
+    <div class="content" style="padding:10px 14px">
+      <div style="display:flex;justify-content:space-between;align-items:baseline"><b style="font:600 18px var(--disp)">Листопад 2026</b><span class="dim" style="font-size:12px">142 фото</span></div>
+      <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:4px;margin-top:10px">
+        <script>["#5b3a6e","#a4553b","#2d5e7a","#7a6b2d","#3a6e4f","#6e2d3a","#2d3a6e","#8a5a7a","#4f6e3a","#6e5b3a","#3a4f6e","#7a3a5b"].forEach(c=>document.write(`<div style="aspect-ratio:1;border-radius:4px;background:linear-gradient(135deg,${c},#111)"></div>`))</script>
+      </div>
+    </div>
+  </div><p class="cap-l">Фото — щільна сітка з малими кутами, без підписів.</p></div>
+
+  <!-- Reminders, clock, contacts small -->
+  <div class="s4"><div class="win" style="height:280px">
+    <div class="tb"><span class="app t-rem"></span><span class="t">Нагадування</span><div class="cap"><span>&#xE921;</span><span>&#xE922;</span><span class="x">&#xE8BB;</span></div></div>
+    <div class="content"><b style="font:600 18px var(--disp)">Сьогодні</b>
+      <div style="margin-top:10px;display:grid;gap:10px;font-size:13px">
+        <div style="display:flex;gap:10px;align-items:center"><span style="width:18px;height:18px;border-radius:50%;border:1.5px solid var(--ink-3)"></span>Зарядити DELTA 2</div>
+        <div style="display:flex;gap:10px;align-items:center"><span style="width:18px;height:18px;border-radius:50%;background:var(--accent);display:grid;place-items:center;color:#fff"><i class="g" style="font-size:10px">&#xE73E;</i></span><s class="dim">Оновити WacOS</s></div>
+        <div style="display:flex;gap:10px;align-items:center"><span style="width:18px;height:18px;border-radius:50%;border:1.5px solid var(--ink-3)"></span>Квиток на поїзд <span class="dim" style="margin-left:auto;font-size:12px">18:00</span></div>
+      </div></div>
+  </div></div>
+  <div class="s4"><div class="win" style="height:280px">
+    <div class="tb"><span class="app t-clock"></span><span class="t">Годинник</span><div class="cap"><span>&#xE921;</span><span>&#xE922;</span><span class="x">&#xE8BB;</span></div></div>
+    <div class="body"><nav class="nav" style="width:140px"><a><i class="g">&#xE12B;</i>Світ</a><a class="on"><i class="g">&#xEA35;</i>Будильник</a><a><i class="g">&#xE916;</i>Таймер</a></nav>
+    <div class="content"><div class="card"><div class="row"><div class="l"><span style="font:300 30px var(--disp)">07:30</span><div class="s">Будні</div></div><span class="tog"></span></div><div class="row"><div class="l"><span style="font:300 30px var(--disp)">10:00</span><div class="s">Вихідні</div></div><span class="tog off"></span></div></div></div></div>
+  </div></div>
+  <div class="s4"><div class="win" style="height:280px">
+    <div class="tb"><span class="app t-con"></span><span class="t">Контакти</span><div class="cap"><span>&#xE921;</span><span>&#xE922;</span><span class="x">&#xE8BB;</span></div></div>
+    <div class="body"><div style="width:130px;padding:0 8px;font-size:13px;display:grid;gap:2px;align-content:start"><div style="padding:6px 10px;border-radius:6px;background:var(--layer-2)">Андрій</div><div style="padding:6px 10px">Марта</div><div style="padding:6px 10px">Олег</div></div>
+    <div class="content" style="text-align:left"><span style="width:56px;height:56px;border-radius:50%;background:linear-gradient(135deg,#4c9dff,#2b62d9);display:grid;place-items:center;font:600 22px var(--disp);color:#fff">А</span><b style="display:block;font:600 18px var(--disp);margin-top:8px">Андрій</b><div class="dim" style="font-size:12.5px;margin-top:6px">мобільний<br><span style="color:var(--ink)">+380 67 000 00 00</span></div></div></div>
+  </div></div>
+
+  <!-- TextEdit / Preview / TimeMachine / Screenshot bar -->
+  <div class="s6"><div class="win" style="height:260px">
+    <div class="tb"><span class="app t-text"></span><span class="t">Без назви — TextEdit</span><div class="cap"><span>&#xE921;</span><span>&#xE922;</span><span class="x">&#xE8BB;</span></div></div>
+    <div style="display:flex;gap:4px;padding:0 12px 8px;align-items:center"><span class="btn" style="height:28px">Segoe UI <i class="g" style="font-size:10px">&#xE70D;</i></span><span class="btn" style="height:28px">13</span><span class="tool"><b>B</b></span><span class="tool"><i>I</i></span><span class="tool"><u>U</u></span><span class="tool"><i class="g">&#xE8E4;</i></span><span class="tool"><i class="g">&#xE8E3;</i></span></div>
+    <div class="content" style="background:#fff;color:#111">Лист для подяки,<br><br>Дякую за допомогу з перекладом модів.</div>
+  </div><p class="cap-l">TextEdit — панель форматування під заголовком, сторінка біла навіть у темній темі.</p></div>
+  <div class="s6" style="display:grid;gap:16px;align-content:start">
+    <div class="panel" style="display:flex;gap:4px;align-items:center;width:max-content;padding:6px">
+      <span class="tool" style="background:var(--layer-2)"><i class="g">&#xE7F4;</i></span><span class="tool"><i class="g">&#xE737;</i></span><span class="tool"><i class="g">&#xF407;</i></span><span style="width:1px;height:20px;background:var(--stroke-2);margin:0 4px"></span><span class="tool"><i class="g">&#xE714;</i></span><span class="btn" style="height:28px">Параметри <i class="g" style="font-size:10px">&#xE70D;</i></span><span class="btn p" style="height:28px">Зняти</span><span class="tool"><i class="g">&#xE711;</i></span>
+    </div>
+    <div class="win" style="height:170px">
+      <div class="tb"><span class="app t-tm"></span><span class="t">Time Machine</span><div class="cap"><span>&#xE921;</span><span>&#xE922;</span><span class="x">&#xE8BB;</span></div></div>
+      <div class="content" style="display:flex;gap:16px;align-items:center"><span style="width:52px;height:52px;border-radius:50%;background:var(--layer-2);display:grid;place-items:center"><i class="g" style="font-size:22px">&#xE81C;</i></span><div style="flex:1"><b>Остання копія: сьогодні, 03:00</b><div class="dim" style="font-size:12.5px">Наступна — завтра о 03:00 · диск D: (88 % зайнято)</div><div class="meter" style="margin-top:8px"><b class="warn" style="width:88%"></b></div></div><span class="btn p">Створити копію</span></div>
+    </div>
+    <p class="cap-l">Панель «Знімок екрана» і Time Machine.</p>
+  </div>
+
+  <!-- Spotlight + notification -->
+  <div class="s7"><div class="panel" style="padding:0;overflow:hidden">
+    <div style="display:flex;align-items:center;gap:12px;padding:14px 16px;font-size:18px;border-bottom:1px solid var(--stroke)"><i class="g" style="font-size:18px">&#xE721;</i>ter<span class="dim">minal</span></div>
+    <div style="padding:6px">
+      <div class="row" style="border:0;border-radius:6px;background:var(--layer-2)"><span class="app t-term" style="width:28px;height:28px;border-radius:7px"></span><span class="l">Термінал<div class="s">Програма</div></span><kbd class="dim" style="font:12px var(--font)">Enter</kbd></div>
+      <div class="row" style="border:0"><span style="width:28px;height:28px;display:grid;place-items:center"><i class="g">&#xE8A5;</i></span><span class="l">terminal-notes.md<div class="s">Документи · змінено вчора</div></span></div>
+      <div class="row" style="border:0"><span style="width:28px;height:28px;display:grid;place-items:center"><i class="g">&#xE774;</i></span><span class="l">Шукати «terminal» в інтернеті</span></div>
+    </div>
+  </div><p class="cap-l">Spotlight — палітра команд, ближче до PowerToys Run, ніж до macOS.</p></div>
+  <div class="s5"><div class="panel" style="display:flex;gap:12px;align-items:flex-start">
+    <span class="app t-hermes" style="width:32px;height:32px;border-radius:8px;flex:none"></span>
+    <div style="flex:1;font-size:13px"><div style="display:flex"><b>Hermes</b><span class="dim" style="margin-left:auto;font-size:12px">щойно</span></div>Збірку WacOS задеплоєно, острівець тепер чорний.<div style="display:flex;gap:6px;margin-top:10px"><span class="btn" style="height:28px">Відкрити</span><span class="btn" style="height:28px">Закрити</span></div></div>
+  </div><p class="cap-l">Сповіщення — картка з діями, з'являється праворуч під смугою меню.</p></div>
+</div>
+
+<h2>Що далі</h2>
+<p class="note" style="font-size:13.5px">Скажи, що лишити, що змінити (кути, Dock, акцент, щільність), і з якої програми почати. Реалізація піде по черзі: спершу спільна рамка вікна й кнопки праворуч у власних програмах WacOS, потім Dock, потім Файли й Параметри, далі решта.</p>
+
+<script>
+const R=document.documentElement;
+document.querySelectorAll('.tweaks button').forEach(b=>b.onclick=()=>{R.style.setProperty('--accent',b.dataset.a);document.querySelectorAll('.tweaks button').forEach(x=>x.classList.toggle('on',x===b));localStorage.wacosAccent=b.dataset.a});
+const m=document.getElementById('mode');m.onclick=()=>{R.classList.toggle('light');m.textContent=R.classList.contains('light')?'Темна':'Світла'};
+if(localStorage.wacosAccent){R.style.setProperty('--accent',localStorage.wacosAccent)}
+</script>
+</body>
+</html>

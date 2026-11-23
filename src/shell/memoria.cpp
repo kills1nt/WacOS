@@ -286,7 +286,7 @@ void CALLBACK Tick(HWND, UINT, UINT_PTR, DWORD) {
     if (p.nivel != g_level) {
         Log(L"memoria: pressão %ls (disponível %.0f%%, commit %.0f%%)", p.nivel == 2 ? L"crítica" : p.nivel == 1 ? L"alta" : L"normal", p.livre * 100, p.commit * 100);
         if (p.nivel > g_level) Purge(p.nivel == 2 ? L"pressão crítica" : L"pressão alta");
-        if (p.nivel == 2 && (!g_lastForceQuit || now - g_lastForceQuit > 600000)) { g_lastForceQuit = now; shell::OpenForceQuit(true); }
+        if (p.nivel == 2 && shell::Setting(L"aviso_memoria", L"1") != L"0" && (!g_lastForceQuit || now - g_lastForceQuit > 600000)) { g_lastForceQuit = now; shell::OpenForceQuit(true); }
         g_level = p.nivel;
     }
     static int k;

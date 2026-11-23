@@ -322,6 +322,8 @@ Page Energia() {
                            Popup(L"Repousar quando inativo", MinuteLabels(L"Após "), [] { return MinuteIndex(sys::SleepMinutes()); },
                                  [](int i) { sys::SetSleepMinutes(MINUTES[i]); }) }));
     // App Nap do Mac (shell\memoria.cpp): o Shell põe no modo eficiência do Windows quem está fora de vista
+    p.groups.push_back(G({ Toggle(L"Avisar quando a memória acabar", [] { return Setting(L"aviso_memoria", L"1") != L"0"; },
+                                  [](bool v) { SetSetting(L"aviso_memoria", v ? L"1" : L"0"); }) }));
     p.groups.push_back(G({ Toggle(L"Soneca de Apps", [] { return Setting(L"app_nap", L"1") != L"0"; },
                                   [](bool v) { SetSetting(L"app_nap", v ? L"1" : L"0"); },
                                   L"Programas com todas as janelas escondidas, minimizadas ou cobertas por 30 segundos passam a gastar menos processador, como o App Nap do Mac. Voltam ao normal assim que aparecem. Não vale para o que está tocando ou gravando som.") }));
@@ -1542,7 +1544,7 @@ Page PersonalizarDock() {
     // no Mac a janela maximizada encosta no Dock; quem quiser um respiro entre os dois escolhe aqui (issue #8)
     Row folga = Slider(L"Espaço acima das janelas maximizadas", 0, 24, [] { return NumSetting(L"dock_folga", 0); }, SetNum(L"dock_folga"), L"Encostado", L"Longe");
     folga.hasDef = true; folga.def = 0;
-    p.groups.push_back(G({ esp, marg, folga }, L"Tamanho e Espaço"));
+    p.groups.push_back(G({ esp, marg, folga, Flag(L"Mostrar o Dock no monitor onde o ponteiro encosta embaixo", L"dock_seguir", L"1") }, L"Tamanho e Espaço"));
     float raioDef = tahoe ? 61.f : 43.f, opacDef = tahoe ? 39.f : 45.f;
     Row raio = Slider(L"Arredondamento dos cantos", 0, 100, [raioDef] { return NumSetting(L"dock_raio", raioDef); }, SetNum(L"dock_raio"), L"Reto", L"Pílula");
     raio.hasDef = true; raio.def = raioDef;

@@ -156,7 +156,15 @@ float WinH() { return g_large + PAD_TOP + PAD_BOTTOM + MARGIN + (Vert() ? 280 : 
 // O monitor do Dock (Ajustes > Mesa e Dock > Monitor do Dock: dock_monitor = nome do monitor, ex. \\.\DISPLAY2;
 // vazio = o principal). Antes era o monitor onde a janela estava, e com dois monitores o Dock passava de um
 // para o outro. Guardado por 2 s: monitor ligado/desligado entra sozinho.
+// dock_seguir=1 (default): pushing the pointer against the bottom edge of another display brings the Dock there
+// (like the Mac); g_follow is that display until the pointer does the same on another one
+HMONITOR g_follow;
 HMONITOR DockMon() {
+    if (g_follow && shell::Setting(L"dock_seguir", L"1") != L"0") {
+        MONITORINFO mi{ sizeof(mi) };
+        if (GetMonitorInfoW(g_follow, &mi)) return g_follow;
+        g_follow = nullptr;
+    }
     static std::wstring lastKey;
     static HMONITOR cached;
     static DWORD at;
@@ -664,6 +672,14 @@ bool WindowOverDock() {
 // Esconder agora? Sempre (ocultação comum) ou só com janela por cima (inteligente); o mouse na borda de baixo mostra.
 bool WantHidden() {
     POINT c; GetCursorPos(&c);
+    if (Pos() == 0 && shell::Setting(L"dock_seguir", L"1") != L"0") {
+        HMONITOR cm = MonitorFromPoint(c, MONITOR_DEFAULTTONULL);
+        MONITORINFO mi{ sizeof(mi) };
+        if (cm && cm != DockMon() && GetMonitorInfoW(cm, &mi) && c.y >= mi.rcMonitor.bottom - 2) {
+            g_follow = cm; g_lastBg = {};
+            Log(L"Dock: segue o ponteiro para outro monitor");
+        }
+    }
     RECT mon = Monitor();
     float sc = Sc();
     // distância do ponteiro até a borda do Dock (embaixo, a de baixo; dos lados, a esquerda ou a direita)
