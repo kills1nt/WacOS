@@ -882,6 +882,8 @@ void CALLBACK FgEvent(HWINEVENTHOOK, DWORD, HWND h, LONG obj, LONG, DWORD, DWORD
         g_seen[a->id] = NowFt();
         if (had) Paint();
     }
+    static HWND last;
+    if (h != last && shell::Setting(L"wacos_ui", L"1") != L"0") { last = h; Paint(); }  // the active-app dash follows the focus
 }
 
 // A etiqueta com o nome (pt, na janela dos ícones, sempre em pé): embaixo, acima do ícone com a setinha para baixo;
@@ -1165,6 +1167,15 @@ void Paint() {
             else br->SetColor(dark ? D2D1::ColorF(1, 1, 1, 0.55f) : D2D1::ColorF(0, 0, 0, 0.50f));
             float dr = std::max(1.25f, g_tile * (tahoe ? 0.028f : 0.034f));
             float dy = g_bg.bottom - g_tile * (tahoe ? 0.088f : 0.068f);
+            bool wac = shell::Setting(L"wacos_ui", L"1") != L"0";
+            if (wac) {  // WacOS design: Windows 11 dashes — short for an open app, long and in the accent for the active one
+                HWND fg = GetForegroundWindow(), fgRoot = fg ? GetAncestor(fg, GA_ROOTOWNER) : nullptr;
+                bool act = false;
+                for (auto& w : apps::list[it.app].wins) if (w.hwnd == fg || w.hwnd == fgRoot) act = true;
+                float hw = g_tile * (act ? 0.15f : 0.06f), th = std::max(1.5f, g_tile * 0.03f);
+                if (act) br->SetColor(ui::Accent());
+                rt->FillRoundedRectangle(D2D1::RoundedRect(D2D1::RectF(it.cx - hw, dy - th, it.cx + hw, dy + th), th, th), br);
+            } else
             if (g_indicador == 1) {  // traço (Personalizar o Dock): uma barrinha arredondada de ~1/3 do ícone
                 float hw = g_tile * 0.16f;
                 rt->FillRoundedRectangle(D2D1::RoundedRect(D2D1::RectF(it.cx - hw, dy - dr * 0.8f, it.cx + hw, dy + dr * 0.8f), dr * 0.8f, dr * 0.8f), br);
