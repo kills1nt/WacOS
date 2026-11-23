@@ -808,7 +808,13 @@ bool apps::LaunchNoOcclusion(const std::wstring& target, const std::wstring& arg
             sl->Release();
         }
     } else if (low.size() > 4 && low.compare(low.size() - 4, 4, L".exe") == 0) exe = t;
-    else if (exe.empty() && !hint.empty()) exe = hint;  // sem caminho: usa o .exe das janelas do app
+    else if (exe.empty() && !hint.empty()) {  // sem caminho: usa o .exe das janelas do app
+        // but never a browser helper that only draws another app's window (Steam's steamwebhelper.exe under \cef\):
+        // started on its own it opens nothing, and Steam never came up from the Dock
+        std::wstring lh = hint; for (auto& ch : lh) ch = towlower(ch);
+        if (lh.find(L"\\cef\\") != std::wstring::npos || lh.find(L"helper") != std::wstring::npos) return false;
+        exe = hint;
+    }
     if (exe.empty() || GetFileAttributesW(exe.c_str()) == INVALID_FILE_ATTRIBUTES) return false;
     std::wstring base = exe.substr(exe.find_last_of(L'\\') + 1);
     for (auto& ch : base) ch = towlower(ch);

@@ -70,6 +70,7 @@ static DWORD g_macKeyVk;    // a tecla do atalho: soltar também é nosso (o app
 static DWORD g_capKey;      // tecla do atalho da Captura de Tela ainda segurada
 static bool g_fullHook = true;  // false: o gancho só existe para a tela de bloqueio (tecla Windows do Launchpad desligada)
 const UINT WM_APP_VOLUME = WM_APP + 42;
+static bool g_spotlightKey = true;  // spotlight_atalho: Win+Space opens our Spotlight (0 = free for Raycast & co.)
 static bool g_volumeKeys = true;  // ajuste volume_mac: teclas de volume com o aviso do Mac (0 = o Windows trata)
 
 static LRESULT CALLBACK KeyHook(int code, WPARAM w, LPARAM l) {
@@ -162,7 +163,7 @@ static LRESULT CALLBACK KeyHook(int code, WPARAM w, LPARAM l) {
                 // Ctrl+Alt+Esc: Forçar Encerrar Aplicativos (Command+Option+Esc do Mac)
                 PostMessageW(g_msg, WM_APP_MONITOR, 1, 0);
                 return 1;
-            } else if (k->vkCode == VK_SPACE && g_winDown && (!g_winCombo || g_winEaten)) {
+            } else if (k->vkCode == VK_SPACE && g_winDown && (!g_winCombo || g_winEaten) && g_spotlightKey) {
                 // Win+Espaço: o Spotlight (Cmd+Espaço no Mac; no Windows trocaria o idioma do teclado).
                 // Segurando o Win, cada Espaço abre/fecha de novo; repetição de tecla segurada não conta e
                 // nenhum Espaço chega ao app de baixo
@@ -1216,6 +1217,7 @@ int WINAPI wWinMain(HINSTANCE hi, HINSTANCE, PWSTR, int) {
     g_capturaExe = !soDock && GetFileAttributesW((shell::dir + L"\\" EXE_SCREENSHOT).c_str()) != INVALID_FILE_ATTRIBUTES;
     if (!soDock) EnsureScreenshot();
     g_volumeKeys = shell::Setting(L"volume_mac", L"1") == L"1";
+    g_spotlightKey = shell::Setting(L"spotlight_atalho", L"1") != L"0";
     if (g_fullHook || g_volumeKeys || (!soDock && shell::Setting(L"bloqueio", L"1") != L"0")) std::thread(KeyThread).detach();  // sem o Launchpad: só barra teclas com a tela travada
     SetWinEventHook(EVENT_SYSTEM_FOREGROUND, EVENT_SYSTEM_FOREGROUND, nullptr, OnWinEvent, 0, 0, WINEVENT_OUTOFCONTEXT);
     jogo::GanchoPosicao(OnWinEvent, WINEVENT_OUTOFCONTEXT | WINEVENT_SKIPOWNPROCESS);  // sai no modo jogo (jogo.cpp)
@@ -1309,6 +1311,7 @@ int shell::RodarNativo(HINSTANCE hi, const std::wstring& dirBin, const std::wstr
     g_capturaExe = GetFileAttributesW((shell::dir + L"\\" EXE_SCREENSHOT).c_str()) != INVALID_FILE_ATTRIBUTES;
     EnsureScreenshot();
     g_volumeKeys = shell::Setting(L"volume_mac", L"1") == L"1";
+    g_spotlightKey = shell::Setting(L"spotlight_atalho", L"1") != L"0";
     if (g_fullHook || g_volumeKeys) std::thread(KeyThread).detach();
     SetWinEventHook(EVENT_SYSTEM_FOREGROUND, EVENT_SYSTEM_FOREGROUND, nullptr, OnWinEvent, 0, 0, WINEVENT_OUTOFCONTEXT);
     jogo::GanchoPosicao(OnWinEvent, WINEVENT_OUTOFCONTEXT);  // sai no modo jogo (jogo.cpp)

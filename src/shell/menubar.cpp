@@ -294,6 +294,19 @@ struct Status {
 bool WifiName(std::wstring& ssid);
 bool g_audioStale;  // a saída padrão mudou: relê o objeto de áudio já
 
+std::wstring LayoutName(HKL hkl);
+std::wstring InputBadge(HKL hkl);
+// keyboard layout of the app in front; same app, new layout = the user switched the language: the island shows it
+bool CheckLang() {
+    HWND fg = GetForegroundWindow();
+    HKL was = g_st.hkl;
+    g_st.hkl = GetKeyboardLayout(fg ? GetWindowThreadProcessId(fg, nullptr) : 0);
+    static HWND lastFg;
+    bool changed = was && g_st.hkl != was;
+    if (changed && fg == lastFg) ilha::Idioma(LayoutName(g_st.hkl), InputBadge(g_st.hkl));
+    lastFg = fg;
+    return changed;
+}
 void RefreshStatus() {
     static DWORD wifiAt, audioAt;
     static IAudioEndpointVolume* vol;  // o mesmo objeto de áudio entre as leituras (antes: criado e solto a cada segundo)
@@ -368,9 +381,9 @@ void RefreshStatus() {
     }
     }
     // fonte de entrada (teclado) do app da frente
-    HWND fg = GetForegroundWindow();
-    g_st.hkl = GetKeyboardLayout(fg ? GetWindowThreadProcessId(fg, nullptr) : 0);
+    CheckLang();
 }
+std::wstring LayoutName(HKL hkl);
 
 // "A" para o teclado americano (o "ABC" do Mac), senão a sigla do país do layout (BR, PT, ES…)
 std::wstring InputBadge(HKL hkl) {
@@ -675,6 +688,8 @@ void Render() {
     static IDWriteTextFormat* tfLeoB = ui::FormatFace(L"Lucida Sans Unicode", 14, DWRITE_FONT_WEIGHT_BOLD);
     IDWriteTextFormat* tfN = leo ? tfLeo : g_tf;
     IDWriteTextFormat* tfB = leo ? tfLeoB : g_tfBold;
+    const bool wac = shell::Setting(L"wacos_ui", L"1") != L"0" && !leo;  // WacOS design: smoked underlay, Fluent icons
+    if (wac) dark = true;
     if (leo) dark = false;  // Leopard: a barra é sempre clara, com texto preto (o 10.5 não tinha modo escuro)
     // Menubar Image do macOS 26 (guia, seção 31: catálogos Aqua/DarkAqua): branco 90 % no escuro, preto 85 % no claro
     D2D1_COLOR_F fgc = dark ? D2D1::ColorF(1, 1, 1, liquid::On() ? 0.90f : 0.92f) : D2D1::ColorF(0, 0, 0, 0.85f);
@@ -686,6 +701,7 @@ void Render() {
     D2D1_COLOR_F veil = dark ? D2D1::ColorF(0.06f, 0.06f, 0.07f, 0.18f) : D2D1::ColorF(1, 1, 1, 0.26f);
     if (liquid) veil.a = backdrop::Current().tinted ? veil.a : veil.a * 0.35f;
     if (!bgOn || leo) veil.a = 0;  // sem fundo (Tahoe): só o papel de parede atrás; Leopard: o degradê do Render é o fundo todo
+    if (wac) { veil = D2D1::ColorF(0.04f, 0.04f, 0.055f, blurNow ? 0.55f : 0.38f); fgc = D2D1::ColorF(1, 1, 1, 0.93f); }
     rt->CreateSolidColorBrush(veil, &br);
     rt->FillRectangle(D2D1::RectF(0, 0, W, H), br);  // tinta leve por cima do acrílico
     if (leo) {
@@ -709,6 +725,10 @@ void Render() {
         br->SetColor(D2D1::ColorF(0, 0, 0, 0.62f));
         rt->FillRectangle(D2D1::RectF(0, H - px, W, H), br);
     }
+    if (wac) {  // WacOS design: a hairline under the smoked bar
+        br->SetColor(D2D1::ColorF(1, 1, 1, 0.06f));
+        rt->FillRectangle(D2D1::RectF(0, H - 1 / sc, W, H), br);
+    } else
     if (liquid && bgOn) {  // Liquid Glass: sem degradê branco; só um fio fraco embaixo, como no Tahoe
         float px = 1 / sc;
         br->SetColor(D2D1::ColorF(1, 1, 1, dark ? 0.08f : 0.18f));
@@ -726,6 +746,11 @@ void Render() {
                 rt->FillRectangle(D2D1::RectF(r.left, 0, r.right, H - 1 / sc), lb);
             if (lb) lb->Release();
             if (gs) gs->Release();
+            return;
+        }
+        if (wac) {  // WacOS design: a soft rounded plate, Windows-style
+            br->SetColor(D2D1::ColorF(1, 1, 1, 0.16f));
+            rt->FillRoundedRectangle(D2D1::RoundedRect(D2D1::RectF(r.left + 1, 3, r.right - 1, H - 3), 6, 6), br);
             return;
         }
         if (liquid::On()) {  // Tahoe (vídeo do macOS 26): o item aberto ganha uma cápsula de vidro clara
@@ -791,6 +816,24 @@ void Render() {
         return box;
     };
     auto sym = [&](const wchar_t* name, D2D1_RECT_F box, float h) {
+        if (wac) {  // WacOS design: Segoe Fluent Icons instead of the SF Symbols
+            static const std::pair<const wchar_t*, wchar_t> fl[] = {
+                { L"switch.2", 0xE9E9 }, { L"magnifyingglass", 0xE721 }, { L"wifi", 0xE701 }, { L"wifi.slash", 0xEB5E },
+                { L"battery.100percent.bolt", 0xEA93 }, { L"battery.100percent", 0xE83F }, { L"battery.75percent", 0xE858 },
+                { L"battery.50percent", 0xE855 }, { L"battery.25percent", 0xE853 }, { L"battery.0percent", 0xE850 },
+                { L"speaker.slash.fill", 0xE74F }, { L"headphones", 0xE7F6 }, { L"speaker.fill", 0xE992 },
+                { L"speaker.wave.1.fill", 0xE993 }, { L"speaker.wave.2.fill", 0xE994 }, { L"speaker.wave.3.fill", 0xE995 } };
+            static IDWriteTextFormat* tf = [] {
+                IDWriteTextFormat* f = ui::FormatFace(ui::iconFamily.c_str(), 15, DWRITE_FONT_WEIGHT_NORMAL);
+                if (f) { f->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_CENTER); f->SetParagraphAlignment(DWRITE_PARAGRAPH_ALIGNMENT_CENTER); }
+                return f;
+            }();
+            for (auto& [n, g] : fl) if (!wcscmp(n, name) && tf) {
+                wchar_t s[2] = { g, 0 };
+                rt->DrawTextW(s, 1, tf, D2D1::RectF(box.left - 4, 0, box.right + 4, H), br);
+                return true;
+            }
+        }
         return simbolo::Draw(rt, name, D2D1::RectF(box.left, H / 2 - h / 2, box.right, H / 2 + h / 2), br);
     };
     // Leopard (captura do 10.5): a lupa do Spotlight é o último item, na ponta direita, e o relógio vem antes dela;
@@ -1461,7 +1504,9 @@ LRESULT CALLBACK BarProc(HWND h, UINT m, WPARAM w, LPARAM l) {
     }
     case WM_BARDISPLAYS: menubar::Displays(); return 0;
     case WM_MOUSEACTIVATE: return MA_NOACTIVATE;
-    case WM_TIMER: RefreshStatus(); menubar::Update(); return 0;
+    case WM_TIMER:
+        if (w == 2) { if (CheckLang()) Render(); return 0; }
+        RefreshStatus(); menubar::Update(); return 0;
     case WM_SETTINGCHANGE:  // Windows trocou entre claro e escuro
         if (l && !lstrcmpiW((LPCWSTR)l, L"ImmersiveColorSet")) { menubar::ApplyTheme(); dock::ApplyTheme(); }
         break;
@@ -1638,6 +1683,7 @@ bool menubar::Create(HINSTANCE hi) {
     RefreshStatus();
     ShowWindow(g_bar, SW_SHOWNOACTIVATE);
     SetTimer(g_bar, 1, 1000, nullptr);
+    SetTimer(g_bar, 2, 150, nullptr);  // the keyboard language (island HUD) answers quickly
     Update();
     Displays();  // uma barra igual em cada um dos outros monitores
     return true;

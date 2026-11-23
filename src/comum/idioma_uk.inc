@@ -1652,3 +1652,5 @@
 { L"Documento HTML", L"Документ HTML" },
 { L"Script do PowerShell", L"Сценарій PowerShell" },
 { L"Arquivo em Lotes", L"Пакетний файл" },
+{ L"Abrir com Win+Espaço", L"Відкривати через Win+Пробіл" },
+{ L"Desligado, o atalho fica livre para outro lançador (Raycast, PowerToys Run).", L"Вимкнено — комбінація вільна для іншого лаунчера (Raycast, PowerToys Run)." },

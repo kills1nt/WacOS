@@ -689,7 +689,8 @@ void Sym(ID2D1DeviceContext* dc, ID2D1SolidColorBrush* br, const wchar_t* name, 
     }
     // the same optical size for every control: a long symbol (two rectangles of Screen Mirroring, the Wi-Fi fan)
     // filled the whole width and looked bigger than its neighbours; it is scaled down by its aspect ratio
-    if (name) {
+    const bool wacIcons = fallback && shell::Setting(L"wacos_ui", L"1") != L"0";  // WacOS design: the Fluent glyph
+    if (name && !wacIcons) {
         ID2D1Factory* f = nullptr; dc->GetFactory(&f);
         simbolo::Sym* sy = f ? simbolo::Load(f, name) : nullptr;
         if (f) f->Release();
@@ -1219,6 +1220,7 @@ void PaintTahoe() {
     const D2D1_COLOR_F tint = dark ? D2D1::ColorF(0.29f, 0.29f, 0.30f, 0.31f) : D2D1::ColorF(0.27f, 0.27f, 0.28f, 0.33f);
 
     const D2D1_COLOR_F blue = D2D1::ColorF(0.04f, 0.52f, 1, 1);
+    const bool wac = shell::Setting(L"wacos_ui", L"1") != L"0";  // WacOS design: smoked tiles, accent toggles, Fluent icons
     Pal p = Colors();
     const bool real = backdrop::Real();  // vidro real (refração): as peças vão para o backdrop, cada uma com a lente dela
     std::vector<backdrop::Piece> pieces;
@@ -1232,7 +1234,13 @@ void PaintTahoe() {
             float gx = (r.right - r.left) * 0.03f * grow, gy = (r.bottom - r.top) * 0.03f * grow;  // escala 1,06
             r.left -= gx; r.right += gx; r.top -= gy; r.bottom += gy; rad += std::min(gx, gy);
         }
+        if (wac) rad = std::min(rad, 12.f);  // WacOS design: Windows-like rounded tiles, not capsules
         D2D1_RECT_F pr = D2D1::RectF(r.left * sc, r.top * sc, r.right * sc, r.bottom * sc);
+        if (wac) { tglass::Rect(pr, rad * sc, dark ? D2D1::ColorF(0.10f, 0.10f, 0.12f, 0.62f) : D2D1::ColorF(0.96f, 0.955f, 0.97f, 0.62f));
+                   br->SetColor(D2D1::ColorF(1, 1, 1, dark ? 0.09f : 0.35f));
+                   dc->DrawRoundedRectangle(D2D1::RoundedRect(D2D1::RectF(r.left + 0.5f, r.top + 0.5f, r.right - 0.5f, r.bottom - 0.5f), rad - 0.5f, rad - 0.5f), br, 1);
+                   if (hov) { br->SetColor(D2D1::ColorF(1, 1, 1, 0.05f)); dc->FillRoundedRectangle(D2D1::RoundedRect(r, rad, rad), br); }
+                   return; }
         if (real) pieces.push_back({ pr, rad * sc });
         else tglass::Rect(pr, rad * sc, tint);
         // brilho suave no alto e o contorno especular do Liquid Glass
@@ -1244,6 +1252,15 @@ void PaintTahoe() {
         liquid::Rim(dc, r, rad, dark, 1.0f, spec, lx, ly);  // fio branco em volta toda; os cantos só acendem com o ponteiro
     };
     auto circleBtn = [&](D2D1_POINT_2F c, float r, bool on, const wchar_t* sym, wchar_t fb, D2D1_COLOR_F onColor, float gk = 0.56f) {
+        if (wac) {  // WacOS design: an accent rounded square with a white glyph when on, a soft one when off
+            D2D1_COLOR_F ac = ui::Accent();
+            br->SetColor(on ? ac : D2D1::ColorF(1, 1, 1, 0.08f));
+            float q = r * 0.92f;
+            dc->FillRoundedRectangle(D2D1::RoundedRect(D2D1::RectF(c.x - q, c.y - q, c.x + q, c.y + q), 8, 8), br);
+            float s = r * gk * 0.9f;
+            Sym(dc, br, sym, fb, D2D1::RectF(c.x - s, c.y - s, c.x + s, c.y + s), white);
+            return;
+        }
         if (on) {  // ligado: círculo branco com o símbolo colorido
             br->SetColor(D2D1::ColorF(1, 1, 1, 0.98f));
             dc->FillEllipse(D2D1::Ellipse(c, r, r), br);
@@ -1332,7 +1349,7 @@ void PaintTahoe() {
             // trilho #E8E8E8 / #232323 e a parte cheia branca (guia, seção 21, lido do ControlCenter.car)
             br->SetColor(dark ? D2D1::ColorF(0x23 / 255.f, 0x23 / 255.f, 0x23 / 255.f, 1) : D2D1::ColorF(0xE8 / 255.f, 0xE8 / 255.f, 0xE8 / 255.f, 1));
             dc->FillRoundedRectangle(D2D1::RoundedRect(tr, 2.5f, 2.5f), br);
-            br->SetColor(D2D1::ColorF(1, 1, 1, 1));  // o que já está cheio, branco
+            br->SetColor(wac ? ui::Accent() : D2D1::ColorF(1, 1, 1, 1));  // o que já está cheio, branco (WacOS: o acento)
             dc->FillRoundedRectangle(D2D1::RoundedRect(D2D1::RectF(tr.left, tr.top, std::max(kx, tr.left + 5), tr.bottom), 2.5f, 2.5f), br);
         };
         drawTrack();

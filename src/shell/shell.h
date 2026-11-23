@@ -459,6 +459,7 @@ bool On();
 bool Notificacao(const std::wstring& app, const std::wstring& title, const std::wstring& body,
                  std::function<void(ID2D1DeviceContext*, ID2D1SolidColorBrush*, D2D1_RECT_F)> icon, std::function<void()> click);
 bool Volume(float level, bool mute);  // teclas de volume: true = a ilha mostrou (sem o aviso de volume)
+void Idioma(const std::wstring& name, const std::wstring& badge);  // keyboard language switched: a short HUD
 void CapsLock();                // a tecla Caps Lock foi apertada (gancho de teclado do main.cpp)
 void PrivacidadeMudou();        // a bandeja mudou: relê o ícone de privacidade do Windows (tray::PrivacyBits)
 void Captura(bool copiada);     // a Captura de Tela terminou: aviso rápido "Captura feita" / "Captura copiada"

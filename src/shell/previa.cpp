@@ -14,7 +14,8 @@ const wchar_t* CLS = L"ShellPrevia";
 const UINT_PTR T_SHOW = 1, T_POLL = 2;
 const float PAD = 10, GAP = 10, TITLE_H = 24, MAX_TW = 230, MAX_TH = 150, MIN_TW = 120;
 
-struct Card { HWND win; std::wstring title; bool minimized; HTHUMBNAIL th = nullptr; D2D1_RECT_F box{}, thumb{}, close{}; };
+struct Card { HWND win; std::wstring title; bool minimized; HTHUMBNAIL th = nullptr; D2D1_RECT_F box{}, thumb{}, close{};
+              std::vector<BYTE> shot; UINT sw = 0, sh = 0; };  // minimised: a photo of the window (DWM thumbnails are empty then)
 
 HWND g_wnd;
 ui::Surface g_s;
@@ -94,6 +95,12 @@ void Paint() {
             rt->DrawLine({ cc.x - d, cc.y - d }, { cc.x + d, cc.y + d }, g_br, 1.3f);
             rt->DrawLine({ cc.x - d, cc.y + d }, { cc.x + d, cc.y - d }, g_br, 1.3f);
         }
+        if (c.minimized && !c.shot.empty()) {
+            if (ID2D1Bitmap* bmp = ui::Bitmap(rt, c.sw, c.sh, c.shot)) {
+                rt->DrawBitmap(bmp, c.thumb, 0.92f, D2D1_BITMAP_INTERPOLATION_MODE_LINEAR);
+                bmp->Release();
+            }
+        } else
         if (c.minimized || !c.th) {  // sem miniatura (minimizada): um cartão com o texto
             g_br->SetColor(dark ? D2D1::ColorF(1, 1, 1, 0.06f) : D2D1::ColorF(0, 0, 0, 0.05f));
             rt->FillRoundedRectangle(D2D1::RoundedRect(c.thumb, 6, 6), g_br);
@@ -136,6 +143,16 @@ bool Build() {
         Card c{ w.hwnd, w.title, w.minimized || IsIconic(w.hwnd) };
         if (c.title.empty()) c.title = a->name;
         float tw = MAX_TW, th = MAX_TH * 0.62f;
+        if (c.minimized) {  // the photo of the minimised window, at its restored size
+            WINDOWPLACEMENT wp{ sizeof(wp) };
+            if (GetWindowPlacement(w.hwnd, &wp)) {
+                RECT src{ 0, 0, wp.rcNormalPosition.right - wp.rcNormalPosition.left, wp.rcNormalPosition.bottom - wp.rcNormalPosition.top };
+                if (src.right > 0 && src.bottom > 0 && foto::Window(w.hwnd, src, 0, c.shot, c.sw, c.sh) && c.sw && c.sh) {
+                    float k = std::min(MAX_TW / c.sw, MAX_TH / c.sh);
+                    tw = std::max(MIN_TW, c.sw * k); th = c.sh * k;
+                } else c.shot.clear();
+            }
+        }
         if (SUCCEEDED(DwmRegisterThumbnail(g_wnd, w.hwnd, &c.th))) {
             SIZE sz{};
             if (!c.minimized && SUCCEEDED(DwmQueryThumbnailSourceSize(c.th, &sz)) && sz.cx > 0 && sz.cy > 0) {

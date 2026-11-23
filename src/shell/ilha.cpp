@@ -57,13 +57,16 @@ namespace wmc = winrt::Windows::Media::Control;
 
 namespace {
 
+const UINT WM_IL_LANG = WM_APP + 20;
+DWORD g_langAt;
 const UINT WM_IL_FRAME = WM_APP + 1, WM_IL_MEDIA = WM_APP + 2, WM_IL_CAPS = WM_APP + 3, WM_IL_PRIV = WM_APP + 4, WM_IL_DOWN = WM_APP + 5, WM_IL_HIST = WM_APP + 6;
 const UINT_PTR TM_HOVER = 1, TM_LEAVE = 2, TM_PEEK = 3, TM_HUD = 4, TM_EQ = 5, TM_PAUSE = 6, TM_GONE = 7, TM_TICK = 8, TM_STATS = 9, TM_CAPS = 10, TM_CLOCK = 11;
 
 enum Style { S_NOTCH, S_ILHA, S_AVISO };
 enum Mode { M_HIDDEN, M_IDLE, M_MEDIA, M_TIMER, M_HUD, M_PEEK, M_OPEN };
 enum Tab { TAB_HOME, TAB_TIMER, TAB_CLIP, TAB_SHELF, TAB_STATS, TAB_N };
-enum HudKind { HUD_VOL, HUD_CAPS, HUD_BAT, HUD_COPY, HUD_SHOT };
+enum HudKind { HUD_VOL, HUD_CAPS, HUD_BAT, HUD_COPY, HUD_SHOT, HUD_LANG };
+std::wstring g_langName, g_langBadge;  // HUD_LANG: the keyboard language just switched to
 
 // medidas em pt
 const float WMAX = 660, HMAX = 300;   // a janela: o maior tamanho (aberta) com folga para a mola e a sombra
@@ -1466,6 +1469,19 @@ void DrawContent(ID2D1DeviceContext* dc, ID2D1SolidColorBrush* br, Mode m, doubl
         } else if (g_hud == HUD_CAPS) {
             Glyph(dc, br, 0xE765, g_tfIconS, D2D1::RectF(wingL, cy - 9, wingL + 22, cy + 9), g_caps ? GREEN : GRAY);
             Text(dc, br, g_caps ? L"Caps Lock" : Tr(L"Caps Lock desligado"), g_tfWingR, D2D1::RectF(rr - 130, cy - 8, rr, cy + 8), g_caps ? GREEN : GRAY);
+        } else if (g_hud == HUD_LANG) {  // keyboard language switched: keyboard glyph, the name, and the badge sliding in
+            float t = std::clamp((GetTickCount() - g_langAt) / 260.f, 0.f, 1.f), e = 1 - (1 - t) * (1 - t) * (1 - t);
+            Glyph(dc, br, 0xE765, g_tfIconS, D2D1::RectF(wingL, cy - 9, wingL + 22, cy + 9), WHITE);
+            float bw = 34, bx = rr - bw + (1 - e) * 14;
+            br->SetColor(D2D1::ColorF(1, 1, 1, 0.92f * e));
+            dc->FillRoundedRectangle(D2D1::RoundedRect(D2D1::RectF(bx, cy - 9, bx + bw, cy + 9), 5, 5), br);
+            br->SetColor(D2D1::ColorF(0, 0, 0, e));
+            { float tw = 0; IDWriteTextLayout* l = nullptr; if (SUCCEEDED(ui::dw->CreateTextLayout(g_langBadge.c_str(), (UINT32)g_langBadge.size(), g_tfWingR, 200, 20, &l))) { DWRITE_TEXT_METRICS m{}; l->GetMetrics(&m); tw = m.width; l->Release(); }
+              float pad = std::max(0.f, (bw - tw) / 2);
+              dc->DrawTextW(g_langBadge.c_str(), (UINT32)g_langBadge.size(), g_tfWingR, D2D1::RectF(bx, cy - 9, bx + bw - pad, cy + 9), br); }
+            D2D1_COLOR_F tc = WHITE; tc.a *= e;
+            Text(dc, br, g_langName, g_tfWingR, D2D1::RectF(wingL + 28, cy - 8 + (1 - e) * 6, bx - 8, cy + 8 + (1 - e) * 6), tc);
+            if (t < 1) InvalidateRect(g_wnd, nullptr, FALSE);
         } else if (g_hud == HUD_SHOT) {  // "Captura feita" (issue #8): a câmera e o texto, rapidinho
             Sym(dc, br, L"camera.fill", D2D1::RectF(wingL + 2, cy - 6, wingL + 18, cy + 6), WHITE);
             Text(dc, br, g_shotClip ? Tr(L"Captura copiada") : Tr(L"Captura feita"), g_tfWingR, D2D1::RectF(rr - 150, cy - 8, rr, cy + 8), WHITE);
@@ -1939,7 +1955,8 @@ LRESULT CALLBACK Proc(HWND h, UINT m, WPARAM w, LPARAM l) {
         }
         return 0;
     }
-    case WM_IL_CAPS: SetTimer(h, TM_CAPS, 40, nullptr); return 0;  // o Windows ainda não trocou o estado da tecla
+    case WM_IL_CAPS: SetTimer(h, TM_CAPS, 40, nullptr); return 0;
+    case WM_IL_LANG: g_langAt = GetTickCount(); ShowHud(HUD_LANG, 1500); return 0;  // o Windows ainda não trocou o estado da tecla
     case WM_IL_HIST: {
         std::unique_ptr<std::vector<std::wstring>> v((std::vector<std::wstring>*)l);
         Log(L"ilha: histórico da área de transferência do Windows: %zu itens", v->size());
@@ -2286,6 +2303,11 @@ bool ilha::Volume(float level, bool mute) {
     return true;
 }
 
+void ilha::Idioma(const std::wstring& name, const std::wstring& badge) {
+    if (!g_wnd || !g_on || g_full) return;
+    g_langName = name; g_langBadge = badge; g_langAt = GetTickCount();
+    PostMessageW(g_wnd, WM_IL_LANG, 0, 0);
+}
 void ilha::CapsLock() { if (g_wnd && g_on) PostMessageW(g_wnd, WM_IL_CAPS, 0, 0); }
 
 // O Windows 11 25H2 não grava mais o uso de programas comuns (ffmpeg, navegadores...) no ConsentStore enquanto usam:
