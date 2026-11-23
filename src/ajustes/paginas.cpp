@@ -858,6 +858,9 @@ Page Aparencia() {
         for (int k = 0; k < 9; k++, x += 22)
             if (std::fabs(pt.x - x) <= 10 && std::fabs(pt.y - (rr.top + 19)) <= 10) { SetSetting(L"destaque", k == 0 ? L"azul" : ACCENTS[k].first); Rebuild(); }
     };
+    p.groups.push_back(G({ Toggle(L"Design do WacOS", [] { return Setting(L"wacos_ui", L"1") != L"0"; },
+                                  [](bool v) { SetSetting(L"wacos_ui", v ? L"1" : L"0"); Rebuild(); },
+                                  L"Menus e janelas no estilo próprio: o visual da Apple com a praticidade do Windows") }));
     Row tema = TemaRow();
     // o Tema fica sempre livre: com "Reduzir transparência" o vidro só fica opaco (como no Mac)
     bool tahoeOn = Setting(L"liquid_glass", L"0") == L"1";

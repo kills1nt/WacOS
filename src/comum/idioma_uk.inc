@@ -1634,3 +1634,7 @@
 { L"Corpo da ilha", L"Корпус острівця" },
 { L"Mostrar o Dock no monitor onde o ponteiro encosta embaixo", L"Показувати Dock на моніторі, де курсор торкається нижнього краю" },
 { L"Avisar quando a memória acabar", L"Попереджати, коли закінчується пам'ять" },
+{ L"Buscar comando…", L"Знайти команду…" },
+{ L"Nada encontrado", L"Нічого не знайдено" },
+{ L"Design do WacOS", L"Дизайн WacOS" },
+{ L"Menus e janelas no estilo próprio: o visual da Apple com a praticidade do Windows", L"Меню й вікна у власному стилі: вигляд Apple, зручність Windows" },

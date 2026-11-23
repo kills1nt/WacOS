@@ -160,6 +160,7 @@ struct MItem {
     UINT32 swatch = 0;    // amostra de cor na coluna do ícone (ctxmenu::Item::swatch)
     std::vector<ctxmenu::Dot> dots;
     HMENU src = nullptr;  // submenu original, relido ao abrir (extensões que completam depois)
+    bool search = false;  // WacOS design: the "Find a command" field at the top of menu bar menus
 };
 
 // Tem submenu, mesmo que ainda não lido (extensão que preenche depois).
@@ -411,6 +412,9 @@ struct Session {
     bool done = false, dark = false;
     MItem* result = nullptr;
     int pendLevel = -1, pendItem = -1;
+    POINT last{}; bool hasLast = false;      // previous pointer position (submenu safe triangle)
+    bool search = false; std::wstring query;  // command search (SearchNext)
+    std::vector<MItem>* base = nullptr; POINT anchor{};
 };
 
 static Session* g_ses;
@@ -458,15 +462,29 @@ static D2D1_COLOR_F MenuAccent(bool dark) {
 
 static bool g_fileGolden;  // golden_gate=1 lido do arquivo (apps fora do Shell)
 static bool g_fileLeopard;  // leopard=1 lido do arquivo (apps fora do Shell)
+static bool g_fileWac = true;  // wacos_ui (default 1): WacOS design — Apple look, Windows convenience
+static bool g_fileLiquid;
+static void ReadFlags();
+// WacOS design (wacos_ui=1): taller rows with icons, 14 px card, command search, submenu safe triangle. It rides on
+// the Tahoe glass path; only an explicit Leopard theme (leopard=1 without liquid_glass) turns it off.
+static bool Wac() {
+    ReadFlags();
+    bool liq = g_glassSet ? g_glass.liquid : g_fileLiquid, leo = g_glassSet ? g_glass.leopard : g_fileLeopard;
+    return g_fileWac && !(leo && !liq);
+}
 static bool Tahoe() {
-    if (g_glassSet) return g_glass.liquid;
-    static DWORD last; static bool on;
-    if (last && GetTickCount() - last < 2000) return on;
+    if (Wac()) return true;
+    return g_glassSet ? g_glass.liquid : g_fileLiquid;
+}
+static void ReadFlags() {
+    static DWORD last;
+    bool& on = g_fileLiquid;
+    if (last && GetTickCount() - last < 2000) return;
     last = GetTickCount() | 1;
     wchar_t ad[MAX_PATH] = {};
-    if (!GetEnvironmentVariableW(L"APPDATA", ad, MAX_PATH)) return on;
+    if (!GetEnvironmentVariableW(L"APPDATA", ad, MAX_PATH)) return;
     FILE* f = nullptr;
-    if (_wfopen_s(&f, (std::wstring(ad) + L"\\Shell\\ajustes.txt").c_str(), L"r, ccs=UTF-8") || !f) return on;
+    if (_wfopen_s(&f, (std::wstring(ad) + L"\\Shell\\ajustes.txt").c_str(), L"r, ccs=UTF-8") || !f) return;
     wchar_t line[512];
     while (fgetws(line, 512, f)) {
         std::wstring l = line;
@@ -477,18 +495,21 @@ static bool Tahoe() {
         if (l == L"golden_gate=0") g_fileGolden = false;
         if (l == L"leopard=1") g_fileLeopard = true;
         if (l == L"leopard=0") g_fileLeopard = false;
+        if (l == L"wacos_ui=1") g_fileWac = true;
+        if (l == L"wacos_ui=0") g_fileWac = false;
     }
     fclose(f);
-    return on;
 }
 // macOS 27 Golden Gate (menu Go do Finder, captura 2x): linhas de 24, separador de 11, 5,5 de folga e de recuo do
 // destaque, destaque com canto 7, menu com canto 11, texto a 16 da borda (41 com símbolo) e símbolo só em Ajustes…
-static bool Golden() { bool t = Tahoe(); return t && (g_glassSet ? g_glass.golden : g_fileGolden); }
+static bool Golden() { bool t = Tahoe(); return t && !Wac() && (g_glassSet ? g_glass.golden : g_fileGolden); }
 // Mac OS X Leopard (leopard=1 sem o Liquid Glass): menus brancos translúcidos e o item escolhido num degradê azul que
 // vai de uma borda à outra, sem cantos (como no 10.5)
 static bool Leopard() { bool t = Tahoe(); return !t && (g_glassSet ? g_glass.leopard : g_fileLeopard); }
 static bool GoldenIcon(const std::wstring& l) {
-    for (const wchar_t* k : { L"Ajustes", L"Settings", L"System Settings", L"Preferências", L"Preferences", L"Sobre Este", L"About This", L"App Store", L"Microsoft Store" })  // macOS 27: o menu da Apple tem símbolo nestes if (l.rfind(k, 0) == 0) return true;
+    // macOS 27: o menu da Apple tem símbolo nestes
+    for (const wchar_t* k : { L"Ajustes", L"Settings", L"System Settings", L"Preferências", L"Preferences", L"Sobre Este", L"About This", L"App Store", L"Microsoft Store" })
+        if (l.rfind(k, 0) == 0) return true;
     return false;
 }
 
@@ -571,18 +592,19 @@ static bool IsDarkMode() {
     return v == 0;
 }
 
-static bool Selectable(const MItem& m) { return !m.sep && !m.header && !m.disabled && m.dots.empty(); }
+static bool Selectable(const MItem& m) { return !m.sep && !m.header && !m.search && !m.disabled && m.dots.empty(); }
 
 // Medidas do menu do Tahoe (Liquid Glass), do guia macOS26-Theme-Reference (seção 31, NSPopupMenuWindow medido
 // no macOS 26): item de 24, separador de 11, 5 de folga em cima e embaixo, texto em x 14 sem ícones e em x 33
 // com a coluna de ícones (SF Symbol 13×15 em x 16), atalho terminando 8 antes da borda, destaque em cápsula de
 // raio ~8. Bolinhas das etiquetas: 12 a cada 20, numa linha de 22.
 static float SepH() { return Tahoe() ? 11.f : M::SEP_H; }
-static float ItemH() { return Tahoe() ? 24.f : M::ITEM_H; }
-static float PadY() { return Golden() ? 5.5f : Tahoe() ? 5.f : M::PAD_Y; }
-static float Inset() { return Golden() ? 5.5f : M::INSET; }
+static float ItemH() { return Wac() ? 32.f : Tahoe() ? 24.f : M::ITEM_H; }
+static float PadY() { return Wac() ? 6.f : Golden() ? 5.5f : Tahoe() ? 5.f : M::PAD_Y; }
+static float Inset() { return Wac() ? 6.f : Golden() ? 5.5f : M::INSET; }
+const float SEARCH_H = 40;
 const float DOT_D = 12, DOT_PITCH = 20, DOT_ROW_H = 22, ICON_CX = 23, ICON_TEXT_L = 34;
-static float IconCx() { return Golden() ? 23.f : Tahoe() ? 22.5f : ICON_CX; }   // ícone 13 de largura começando em x 16
+static float IconCx() { return Wac() ? 24.f : Golden() ? 23.f : Tahoe() ? 22.5f : ICON_CX; }   // ícone 13 de largura começando em x 16
 static float HotR() { return Golden() ? 7.f : Tahoe() ? 8.f : M::RADIUS; }
 
 // Bolinha da fileira sob o x (pixels da janela) ou -1
@@ -603,7 +625,7 @@ static winrt::Windows::System::DispatcherQueueController g_wdq{ nullptr };
 static ID2D1Device* g_wd2d;
 static bool g_wcTried, g_wcOk;
 const float CARD_R_TAHOE = 12;  // raio do canto do menu (DIP)
-#define CARD_R (Golden() ? 11.f : CARD_R_TAHOE)  // macOS 27: 11 (medido)
+#define CARD_R (Wac() ? 14.f : Golden() ? 11.f : CARD_R_TAHOE)  // macOS 27: 11 (medido)
 
 static bool CompReady() {
     if (g_wcTried) return g_wcOk;
@@ -812,7 +834,7 @@ static void OpenLevel(Session& s, std::vector<MItem>* items, POINT anchor, const
     L.tf = MakeFormat(M::FONT * sc, DWRITE_FONT_WEIGHT_NORMAL);
     L.tfHdr = MakeFormat(M::HDR_FONT * sc, DWRITE_FONT_WEIGHT_SEMI_BOLD);
     if (Tahoe() && !g_plain)
-        for (auto& m : *items) if (!m.sep && !m.header && !m.icon && !m.swatch && m.dots.empty() && (!Golden() || GoldenIcon(m.label))) m.icon = ctxmenu::AutoIcon(m.label);
+        for (auto& m : *items) if (!m.sep && !m.header && !m.search && !m.icon && !m.swatch && m.dots.empty() && (!Golden() || GoldenIcon(m.label))) m.icon = ctxmenu::AutoIcon(m.label);
     bool hasCheck = false, hasSub = false, hasIcon = false;
     float maxW = 0, maxShort = 0;
     for (auto& m : *items) {
@@ -823,16 +845,21 @@ static void OpenLevel(Session& s, std::vector<MItem>* items, POINT anchor, const
     }
     if (maxShort > 0) maxW += maxShort + 28 * sc;  // atalhos alinhados à direita, como na barra de menus do Mac
     if (hasIcon) {  // ícones do Tahoe: coluna de ícones à esquerda, texto depois dela
-        g_dw->CreateTextFormat(L"Segoe Fluent Icons", nullptr, DWRITE_FONT_WEIGHT_NORMAL, DWRITE_FONT_STYLE_NORMAL, DWRITE_FONT_STRETCH_NORMAL, 13 * sc, L"", &L.tfIcon);
+        g_dw->CreateTextFormat(L"Segoe Fluent Icons", nullptr, DWRITE_FONT_WEIGHT_NORMAL, DWRITE_FONT_STYLE_NORMAL, DWRITE_FONT_STRETCH_NORMAL, (Wac() ? 15.f : 13.f) * sc, L"", &L.tfIcon);
         if (L.tfIcon) { L.tfIcon->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_CENTER); L.tfIcon->SetParagraphAlignment(DWRITE_PARAGRAPH_ALIGNMENT_CENTER); }
     }
-    L.textL = (hasIcon ? (Golden() ? 41.f : Tahoe() ? 33.f : ICON_TEXT_L) : hasCheck ? 26.f : Golden() ? 16.f : Tahoe() ? 14.f : 16.f) * sc;
+    bool hasSearch = !items->empty() && (*items)[0].search;
+    if (hasSearch && !L.tfIcon) {  // the magnifier in the search field
+        g_dw->CreateTextFormat(L"Segoe Fluent Icons", nullptr, DWRITE_FONT_WEIGHT_NORMAL, DWRITE_FONT_STYLE_NORMAL, DWRITE_FONT_STRETCH_NORMAL, 15.f * sc, L"", &L.tfIcon);
+        if (L.tfIcon) { L.tfIcon->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_CENTER); L.tfIcon->SetParagraphAlignment(DWRITE_PARAGRAPH_ALIGNMENT_CENTER); }
+    }
+    L.textL = ((hasIcon || hasSearch) ? (Wac() ? 42.f : Golden() ? 41.f : Tahoe() ? 33.f : ICON_TEXT_L) : hasCheck ? 26.f : Golden() ? 16.f : Tahoe() ? 14.f : 16.f) * sc;
     L.textR = (hasSub ? 34.f : Tahoe() ? 8.f + 6.f : 18.f) * sc;  // Tahoe: o atalho termina 8 antes da borda (+ folga do texto)
     float W = L.textL + ceilf(maxW) + 2 * sc + L.textR;
-    W = std::clamp(W, M::MIN_W * sc, M::MAX_W * sc);
+    W = std::clamp(W, (Wac() ? (hasSearch ? 260.f : 220.f) : M::MIN_W) * sc, (Wac() ? 440.f : M::MAX_W) * sc);
     float y = PadY() * sc;
     for (auto& m : *items) {
-        float h = (m.sep ? SepH() : m.header ? M::HDR_H : !m.dots.empty() ? DOT_ROW_H : ItemH()) * sc;
+        float h = (m.search ? SEARCH_H : m.sep ? SepH() : m.header ? M::HDR_H : !m.dots.empty() ? DOT_ROW_H : ItemH()) * sc;
         L.rects.push_back(D2D1::RectF(0, y, W, y + h));
         y += h;
     }
@@ -943,8 +970,29 @@ static int HitItem(Level& L, POINT screen) {
     return -1;
 }
 
+// Point inside triangle abc (screen pixels)
+static bool InTri(POINT p, POINT a, POINT b, POINT c) {
+    auto cr = [](POINT o, POINT u, POINT v) { return (double)(u.x - o.x) * (v.y - o.y) - (double)(u.y - o.y) * (v.x - o.x); };
+    double d1 = cr(p, a, b), d2 = cr(p, b, c), d3 = cr(p, c, a);
+    bool neg = d1 < 0 || d2 < 0 || d3 < 0, pos = d1 > 0 || d2 > 0 || d3 > 0;
+    return !(neg && pos);
+}
+
 static void OnMouseMove(Session& s, int li, POINT pt) {
     Level& L = s.levels[li];
+    POINT prev = s.last; bool had = s.hasLast;
+    if (!had || prev.x != pt.x || prev.y != pt.y) { s.last = pt; s.hasLast = true; }
+    // WacOS design: heading for the open submenu diagonally over other rows keeps it open (the Mac closes it the
+    // moment the pointer slips onto a neighbour). If the pointer stops there, the normal switch happens after a pause.
+    if (Wac() && had && L.openChild >= 0 && (int)s.levels.size() > li + 1 && (prev.x != pt.x || prev.y != pt.y)) {
+        RECT pr = MenuRect(L), cr = MenuRect(s.levels[li + 1]);
+        LONG ex = cr.left >= pr.right - 8 ? cr.left : cr.right;
+        int hit = HitItem(L, pt);
+        if (hit != L.openChild && InTri(pt, prev, POINT{ ex, cr.top }, POINT{ ex, cr.bottom })) {
+            if (hit >= 0 && Selectable((*L.items)[hit])) Schedule(s, li, HasSub((*L.items)[hit]) ? hit : -1, 420);
+            return;
+        }
+    }
     int i = HitItem(L, pt);
     {   // fileira de bolinhas: destaca a bolinha, não a linha
         RECT wr = MenuRect(L);
@@ -1116,6 +1164,22 @@ static void DrawLevel(Session& s, int li) {
         }
         if (m.header) {
             rt->DrawTextW(m.label.c_str(), (UINT32)m.label.size(), L.tfHdr, tr, hdr, D2D1_DRAW_TEXT_OPTIONS_CLIP);
+            continue;
+        }
+        if (m.search) {  // rounded field with a magnifier; the typed query or a dim placeholder
+            D2D1_RECT_F fr = D2D1::RectF(Inset() * sc, r.top + 2 * sc, W - Inset() * sc, r.bottom - 6 * sc);
+            sep->SetOpacity(dk ? 0.6f : 0.5f);
+            rt->FillRoundedRectangle(D2D1::RoundedRect(fr, 9 * sc, 9 * sc), sep);
+            sep->SetOpacity(1);
+            if (L.tfIcon) rt->DrawTextW(L"\xE721", 1, L.tfIcon, D2D1::RectF((IconCx() - 10) * sc, fr.top, (IconCx() + 10) * sc, fr.bottom), dim);
+            const std::wstring& q = g_ses ? g_ses->query : std::wstring();
+            std::wstring t = q.empty() ? Tr(L"Buscar comando…") : q;
+            D2D1_RECT_F qr = D2D1::RectF(L.textL, fr.top, W - Inset() * sc - 8 * sc, fr.bottom);
+            rt->DrawTextW(t.c_str(), (UINT32)t.size(), L.tf, qr, q.empty() ? dim : text, D2D1_DRAW_TEXT_OPTIONS_CLIP);
+            if (!q.empty()) {  // caret after the text
+                float cx = L.textL + TextWidth(L.tf, q) + 1.5f * sc, cy0 = (fr.top + fr.bottom) / 2;
+                rt->FillRectangle(D2D1::RectF(cx, cy0 - 7 * sc, cx + 1.2f * sc, cy0 + 7 * sc), accent);
+            }
             continue;
         }
         bool hot = (int)i == L.hover || ((int)i == L.openChild && L.hover < 0);
@@ -1344,10 +1408,51 @@ static LRESULT CALLBACK PopupProc(HWND h, UINT m, WPARAM w, LPARAM l) {
 }
 
 // Mostra o menu e devolve o item escolhido (ou nullptr). Loop modal próprio, como o TrackPopupMenu.
+// Command search (WacOS design): the first menu shows every leaf whose name contains the query, submenus flattened.
+// g_filtered outlives RunMenu because the chosen item is returned by pointer.
+static std::vector<MItem> g_filtered;
+static std::wstring Fold(std::wstring t) {
+    t.erase(std::remove(t.begin(), t.end(), L'&'), t.end());
+    if (!t.empty()) CharLowerBuffW(&t[0], (DWORD)t.size());
+    return t;
+}
+static void CollectMatches(const std::vector<MItem>& v, const std::wstring& q, wchar_t parentIcon = 0) {
+    for (auto& m : v) {
+        if (m.search || m.sep || m.header || !m.dots.empty()) continue;
+        if (!m.sub.empty()) { CollectMatches(m.sub, q, m.icon); continue; }
+        if (!m.disabled && !m.src && Fold(m.label).find(q) != std::wstring::npos) {
+            g_filtered.push_back(m);
+            if (!g_filtered.back().icon && !g_filtered.back().swatch) g_filtered.back().icon = parentIcon;  // submenu leaf: the parent's icon
+        }
+    }
+}
+static void Refilter(Session& s) {
+    CancelPending(s);
+    CloseLevelsAfter(s, -1);
+    std::vector<MItem>* show = s.base;
+    if (!s.query.empty()) {
+        g_filtered.clear();
+        g_filtered.push_back((*s.base)[0]);
+        CollectMatches(*s.base, Fold(s.query));
+        if (g_filtered.size() == 1) { MItem none; none.label = Tr(L"Nada encontrado"); none.disabled = true; g_filtered.push_back(none); }
+        show = &g_filtered;
+    }
+    OpenLevel(s, show, s.anchor, nullptr, 0);
+    Level& L = s.levels[0];
+    if (!s.query.empty()) for (size_t k = 0; k < L.items->size(); k++) if (Selectable((*L.items)[k])) { L.hover = (int)k; break; }
+    Invalidate(L);
+}
+
+static bool g_searchNext;
+void ctxmenu::SearchNext() { g_searchNext = true; }
+
 static MItem* RunMenu(HWND owner, std::vector<MItem>& items, POINT pt) {
     Session s; s.owner = owner; s.dark = IsDarkMode() && !Leopard();  // Leopard: menus sempre claros
     g_plain = g_plainNext; g_plainNext = false;
     g_above = g_aboveNext; g_aboveNext = false;
+    s.search = g_searchNext && Wac() && items.size() > 3; g_searchNext = false;
+    if (s.search) { MItem f; f.search = true; items.insert(items.begin(), f); }
+    s.base = &items; s.anchor = pt;
     g_ses = &s;
     OpenLevel(s, &items, pt, nullptr, 0);
     if (g_demo) { s.levels[0].hover = 2; Invalidate(s.levels[0]); }
@@ -1357,8 +1462,25 @@ static MItem* RunMenu(HWND owner, std::vector<MItem>& items, POINT pt) {
         if (!GetMessageW(&msg, nullptr, 0, 0)) { PostQuitMessage((int)msg.wParam); break; }
         bool onPopup = FindLevel(msg.hwnd) >= 0;
         switch (msg.message) {
-        case WM_KEYDOWN: case WM_SYSKEYDOWN: OnKey(s, (UINT)msg.wParam); continue;
-        case WM_KEYUP: case WM_SYSKEYUP: case WM_CHAR: case WM_SYSCHAR: continue;
+        case WM_KEYDOWN: case WM_SYSKEYDOWN:
+            if (s.search && msg.message == WM_KEYDOWN) {
+                UINT vk = (UINT)msg.wParam;
+                if (vk == VK_BACK) { if (!s.query.empty()) { s.query.pop_back(); Refilter(s); } continue; }
+                if (vk == VK_ESCAPE && !s.query.empty()) { s.query.clear(); Refilter(s); continue; }
+                if (vk == VK_SPACE && !s.query.empty()) { TranslateMessage(&msg); continue; }
+                if (vk != VK_UP && vk != VK_DOWN && vk != VK_LEFT && vk != VK_RIGHT && vk != VK_RETURN && vk != VK_ESCAPE && !(GetKeyState(VK_CONTROL) & 0x8000)) {
+                    TranslateMessage(&msg);  // letters become WM_CHAR for the query
+                    continue;
+                }
+            }
+            OnKey(s, (UINT)msg.wParam); continue;
+        case WM_CHAR:
+            if (s.search && msg.wParam >= 32 && msg.wParam != 127 && s.query.size() < 40) {
+                s.query.push_back((wchar_t)msg.wParam);
+                Refilter(s);
+            }
+            continue;
+        case WM_KEYUP: case WM_SYSKEYUP: case WM_SYSCHAR: continue;
         case WM_RBUTTONDOWN:
             // botão direito em outro ponto da mesma janela: fecha este e deixa o clique seguir,
             // para a janela abrir o menu do novo item (como no macOS)

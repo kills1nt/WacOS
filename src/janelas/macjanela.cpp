@@ -58,6 +58,7 @@ IDWriteFactory* g_dw;
 IDWriteTextFormat* g_tf;
 IDWriteTextFormat* g_tfLeo;  // Leopard: o título em Lucida (Grande no Mac; Sans Unicode no Windows) 13 normal
 IDWriteTextFormat* g_tfTool;  // título das janelas de plug-in (menor, normal)
+IDWriteTextFormat* g_tfCap;   // WacOS design: Windows caption glyphs (Segoe Fluent Icons)
 
 struct Info {
     HWND owner = nullptr, overlay = nullptr;
@@ -65,6 +66,7 @@ struct Info {
     HMENU menu = nullptr;    // barra de menus original
     bool active = true, hoverLights = false, dark = false;
     int press = -1;
+    int hotBtn = -1;         // WacOS design: caption button under the pointer (0 close, 1 minimise, 2 zoom)
     COLORREF cap = CLR_INVALID;  // cor da barra lida do próprio app (o topo da área dele)
     COLORREF lastRead = CLR_INVALID;  // última leitura (só guarda a cor lida duas vezes igual)
     DWORD fastUntil = 0;         // até quando reler a cada quadro (logo depois de aparecer ou ativar)
@@ -241,9 +243,15 @@ void LightsLayout(Info* in, float& lx0, float& lpitch, float& lr) {
 // Buttons on the right (semaforo::Direita, botoes_direita=1): Windows order, close at the edge. Not in the WacOS apps
 // that use this DLL for their bar (their toolbars are laid out after left buttons)
 bool Right(Info* in) { return semaforo::Direita() && !OwnApp() && !UnifiedBar(in->owner); }
+bool TemaWac();  // below: wacos_ui (default on)
+// WacOS design (variant C): Windows caption buttons — 46 pt wide, the full bar height, close turns red. Apps that draw
+// their own bar (Chromium & co.) keep their native Windows buttons untouched.
+bool WacCaps(Info* in) { return TemaWac() && Right(in) && !in->tool && !leopard::On(); }
+const float CAP_W = 46;
 // centre x (pt) of button k (0 close, 1 minimise, 2 zoom) in a bar W pt wide
 float LightX(Info* in, int k, float W) {
     float lx0, lp, lr; LightsLayout(in, lx0, lp, lr);
+    if (WacCaps(in)) { int pos = k == 0 ? 0 : k == 2 ? 1 : 2; return W - CAP_W / 2 - pos * CAP_W; }
     if (!Right(in)) return lx0 + k * lp;
     int pos = k == 0 ? 0 : k == 2 ? 1 : 2;
     return W - lx0 - pos * lp;
@@ -337,7 +345,7 @@ void Paint(Info* in) {
                 g->Release();
             };
             if (!Right(in)) fill(in->leftColor, D2D1::RectF(0, 0, PatchL(in), H), true);
-            fill(in->rightColor, D2D1::RectF(W - PatchR(in), 0, W, H), false);
+            if (!WacCaps(in)) fill(in->rightColor, D2D1::RectF(W - PatchR(in), 0, W, H), false);
             if (in->capas && !IsZoomed(in->owner)) {  // o fio da borda do DWM, que as faixas cobrem nos lados (continua o das capas)
                 int fundo = (int)(INT_PTR)GetPropW(in->owner, L"MacJanelaFundo");
                 bool dk = fundo ? fundo == 2 : Dark();
@@ -389,7 +397,42 @@ void Paint(Info* in) {
         bool can[3] = { true, (st & WS_MINIMIZEBOX) != 0, (st & WS_MAXIMIZEBOX) != 0 };
         float lx0, lpitch, lr;
         LightsLayout(in, lx0, lpitch, lr);
-        for (int k = 0; k < 3; k++) {
+        const bool caps = WacCaps(in);
+        if (caps && !in->custom) {
+            float R = IsZoomed(in->owner) ? 0.f : CornerRadius(in->owner) / sc;
+            for (int k = 0; k < 3; k++) {
+                if (k > 0 && !can[1] && !can[2]) continue;  // dialog: only close
+                float cx = LightX(in, k, W);
+                D2D1_RECT_F br = D2D1::RectF(cx - CAP_W / 2, 0, cx + CAP_W / 2, H);
+                bool hot = in->hotBtn == k && can[k], down = hot && in->press == k;
+                if (hot) {
+                    b->SetColor(k == 0 ? D2D1::ColorF(0.769f, 0.169f, 0.110f, down ? 0.85f : 1.f)
+                                       : in->dark ? D2D1::ColorF(1, 1, 1, down ? 0.06f : 0.09f) : D2D1::ColorF(0, 0, 0, down ? 0.05f : 0.07f));
+                    if (k == 0 && R > 0) {  // close at the window corner: follow the rounded edge
+                        ID2D1PathGeometry* g = nullptr;
+                        if (SUCCEEDED(g_d2d->CreatePathGeometry(&g))) {
+                            ID2D1GeometrySink* sk = nullptr;
+                            if (SUCCEEDED(g->Open(&sk))) {
+                                sk->BeginFigure({ br.left, br.bottom }, D2D1_FIGURE_BEGIN_FILLED);
+                                sk->AddLine({ br.left, br.top }); sk->AddLine({ br.right - R, br.top });
+                                sk->AddArc(D2D1::ArcSegment({ br.right, br.top + R }, { R, R }, 0, D2D1_SWEEP_DIRECTION_CLOCKWISE, D2D1_ARC_SIZE_SMALL));
+                                sk->AddLine({ br.right, br.bottom });
+                                sk->EndFigure(D2D1_FIGURE_END_CLOSED);
+                                sk->Close(); sk->Release();
+                                rt->FillGeometry(g, b);
+                            }
+                            g->Release();
+                        }
+                    } else rt->FillRectangle(br, b);
+                }
+                if (!g_tfCap) continue;
+                float a = !can[k] ? 0.25f : in->active || in->hoverLights ? 0.9f : 0.45f;
+                b->SetColor(hot && k == 0 ? D2D1::ColorF(1, 1, 1, 1) : in->dark ? D2D1::ColorF(1, 1, 1, a) : D2D1::ColorF(0, 0, 0, a * 0.95f));
+                const wchar_t* gl = k == 0 ? L"\xE8BB" : k == 1 ? L"\xE921" : IsZoomed(in->owner) || in->zoomed ? L"\xE923" : L"\xE922";
+                rt->DrawTextW(gl, 1, g_tfCap, br, b);
+            }
+        }
+        for (int k = 0; k < 3 && !caps; k++) {
             D2D1_POINT_2F c{ LightX(in, k, W), LightsY(in, H) };
             bool lit = (in->active || in->hoverLights) && can[k];
             b->SetColor(lit ? on[k] : (in->dark ? D2D1::ColorF(1, 1, 1, 0.22f) : D2D1::ColorF(0, 0, 0, 0.18f)));
@@ -430,10 +473,10 @@ void Paint(Info* in) {
         } else if (g_tf && t[0] && !in->custom && !(semaforo::Aqua() && OwnApp())) {  // macOS 27: os apps do sistema não mostram o título
             if (leo && !in->dark) {  // Leopard: o título em relevo (sombra branca 1 pt abaixo)
                 b->SetColor(D2D1::ColorF(1, 1, 1, in->active ? 0.55f : 0.35f));
-                rt->DrawTextW(t, (UINT32)wcslen(t), g_tfLeo ? g_tfLeo : g_tf, D2D1::RectF(80, 1, W - 80, H + 1), b);
+                rt->DrawTextW(t, (UINT32)wcslen(t), g_tfLeo ? g_tfLeo : g_tf, D2D1::RectF(caps ? 3 * CAP_W : 80.f, 1, W - (caps ? 3 * CAP_W : 80.f), H + 1), b);
             }
             b->SetColor(in->dark ? D2D1::ColorF(1, 1, 1, in->active ? 0.86f : 0.42f) : D2D1::ColorF(0, 0, 0, in->active ? 0.85f : 0.40f));
-            rt->DrawTextW(t, (UINT32)wcslen(t), leo && g_tfLeo ? g_tfLeo : g_tf, D2D1::RectF(80, 0, W - 80, H), b);
+            rt->DrawTextW(t, (UINT32)wcslen(t), leo && g_tfLeo ? g_tfLeo : g_tf, D2D1::RectF(caps ? 3 * CAP_W : 80.f, 0, W - (caps ? 3 * CAP_W : 80.f), H), b);
         }
         b->Release();
         rt->EndDraw();
@@ -454,6 +497,12 @@ int HitLight(Info* in, POINT clientPt) {
     RECT r = BarRect(in);
     float H = (r.bottom - r.top) / sc;
     float x = clientPt.x / sc, y = clientPt.y / sc, W = (r.right - r.left) / sc;
+    if (WacCaps(in)) {
+        if (in->custom || y < 0 || y > H) return -1;
+        bool dlg = !(in->style & WS_MINIMIZEBOX) && !(in->style & WS_MAXIMIZEBOX);
+        for (int k = 0; k < (dlg ? 1 : 3); k++) if (std::fabs(x - LightX(in, k, W)) <= CAP_W / 2) return k;
+        return -1;
+    }
     for (int k = 0; k < 3; k++) if (std::fabs(x - LightX(in, k, W)) <= 9 && std::fabs(y - LightsY(in, H)) <= 8) return k;  // mesmas posições do desenho
     return -1;
 }
@@ -573,6 +622,8 @@ bool OwnApp() {
     return own == 1;
 }
 static bool g_golden;  // lido junto com o Tahoe (TemaTahoe)
+static bool g_wac = true;  // wacos_ui (lido junto com o Tahoe)
+bool TemaWac() { TemaTahoe(); return g_wac; }
 // barra_mac_propria (TemaTahoe). Desligado por padrão desde a build-25: os botões do Mac nos apps de barra própria
 // ainda estão em testes (sessão "macOS Title bar for all apps"); barra_mac_propria=1 liga
 static bool g_propria = false;
@@ -594,10 +645,11 @@ bool TemaTahoe(bool force) {
     buf[n] = 0;
     on = strstr(buf, "liquid_glass=1") != nullptr;
     g_golden = strstr(buf, "golden_gate=1") != nullptr;
+    g_wac = strstr(buf, "wacos_ui=0") == nullptr;
     g_propria = strstr(buf, "barra_mac_propria=1") != nullptr;
     return on;
 }
-int CornerRadius(HWND h) { return (int)std::lround((TemaTahoe() ? 16 : 12)  /* Golden Gate: também 16 pt (medido) */ * Scale(h)); }
+int CornerRadius(HWND h) { return (int)std::lround((TemaWac() && !leopard::On() ? 14 : TemaTahoe() ? 16 : 12)  /* Golden Gate: também 16 pt (medido) */ * Scale(h)); }
 
 // Moldura e prévia: transparentes para cliques. A moldura confere sozinha (timer) se a janela dela
 // ainda existe, está visível e ainda a reconhece como moldura: senão some (sobrava um contorno
@@ -1235,11 +1287,13 @@ LRESULT CALLBACK OverlayProc(HWND h, UINT m, WPARAM w, LPARAM l) {
         p.x -= r.left; p.y -= r.top;
         float sc = Scale(in->owner);
         if (in->custom) {  // só as duas faixas pintadas; o resto deixa o clique passar para a barra do app (abas, arrastar)
+            if (WacCaps(in)) return HTTRANSPARENT;  // the app's own Windows buttons stay usable
             if (!Right(in) && p.x / sc < PatchL(in)) return HTCLIENT;
             if (p.x / sc > (r.right - r.left) / sc - PatchR(in)) return HTCLIENT;
             return HTTRANSPARENT;
         }
         float zone = (UnifiedBar(in->owner) > 40 ? 84 : 72) + WinAppInset(in);
+        if (WacCaps(in)) zone = 3 * CAP_W;
         if (Right(in) ? p.x / sc > (r.right - r.left) / sc - zone : p.x / sc < zone) return HTCLIENT;
         return HTTRANSPARENT;
     }
@@ -1269,6 +1323,11 @@ LRESULT CALLBACK OverlayProc(HWND h, UINT m, WPARAM w, LPARAM l) {
         }
         return 0;
     case WM_MOUSEMOVE:
+        if (in && WacCaps(in)) {
+            POINT p{ (short)LOWORD(l), (short)HIWORD(l) };
+            int k = HitLight(in, p);
+            if (k != in->hotBtn) { in->hotBtn = k; if (in->hoverLights) Paint(in); }
+        }
         if (in && !in->hoverLights) {
             in->hoverLights = true;
             TRACKMOUSEEVENT t{ sizeof(t), TME_LEAVE, h, 0 };
@@ -1281,8 +1340,8 @@ LRESULT CALLBACK OverlayProc(HWND h, UINT m, WPARAM w, LPARAM l) {
             else if (RemovePropW(h, L"MacVerdeEspera")) KillTimer(h, 7);
         }
         return 0;
-    case WM_MOUSELEAVE: if (in) { in->hoverLights = false; in->press = -1; Paint(in); } RemovePropW(h, L"MacVerdeEspera"); KillTimer(h, 7); return 0;
-    case WM_LBUTTONDOWN: RemovePropW(h, L"MacVerdeEspera"); KillTimer(h, 7); if (in) { POINT p{ (short)LOWORD(l), (short)HIWORD(l) }; in->press = HitLight(in, p); SetCapture(h); } return 0;
+    case WM_MOUSELEAVE: if (in) { in->hoverLights = false; in->press = -1; in->hotBtn = -1; Paint(in); } RemovePropW(h, L"MacVerdeEspera"); KillTimer(h, 7); return 0;
+    case WM_LBUTTONDOWN: RemovePropW(h, L"MacVerdeEspera"); KillTimer(h, 7); if (in) { POINT p{ (short)LOWORD(l), (short)HIWORD(l) }; in->press = HitLight(in, p); SetCapture(h); if (WacCaps(in)) Paint(in); } return 0;
     case WM_LBUTTONUP: {
         ReleaseCapture();
         if (!in) return 0;
@@ -1923,6 +1982,11 @@ void Attach(HWND h, int mode) {
                 if (ell) ell->Release();
             }
             g_dw->CreateTextFormat(fam, nullptr, DWRITE_FONT_WEIGHT_NORMAL, DWRITE_FONT_STYLE_NORMAL, DWRITE_FONT_STRETCH_NORMAL, 12, L"pt-br", &g_tfTool);
+            for (auto f : { L"Segoe Fluent Icons", L"Segoe MDL2 Assets" })
+                if (!g_tfCap && SUCCEEDED(g_dw->CreateTextFormat(f, nullptr, DWRITE_FONT_WEIGHT_NORMAL, DWRITE_FONT_STYLE_NORMAL, DWRITE_FONT_STRETCH_NORMAL, 10, L"", &g_tfCap)) && g_tfCap) {
+                    g_tfCap->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_CENTER);
+                    g_tfCap->SetParagraphAlignment(DWRITE_PARAGRAPH_ALIGNMENT_CENTER);
+                }
             if (g_tfTool) {
                 g_tfTool->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_CENTER);
                 g_tfTool->SetParagraphAlignment(DWRITE_PARAGRAPH_ALIGNMENT_CENTER);

@@ -24,6 +24,8 @@
 static HINSTANCE g_inst;
 static FILE* g_log;
 static bool g_demo;
+static bool g_barra;              // --barra: menu bar menu demo
+static std::wstring g_barraText;  // text typed into its command search
 
 static void Log(const wchar_t* fmt, ...) {
     if (!g_log) return;
@@ -318,6 +320,22 @@ static LRESULT CALLBACK MainProc(HWND h, UINT m, WPARAM w, LPARAM l) {
             ctxmenu::ShowItems(h, pt, items);
             DestroyWindow(h);
         }
+        if (w == 12) {  // --barra [text]: a menu bar menu in the WacOS design, with the command search (typed text)
+            KillTimer(h, 12);
+            auto I = [](const wchar_t* l, int id, const wchar_t* k = L"") { ctxmenu::Item i; i.label = l; i.id = id; i.shortcut = k; return i; };
+            ctxmenu::Item sep; sep.separator = true;
+            ctxmenu::Item rec = I(L"Abrir Recente", 0);
+            rec.sub = { I(L"Downloads", 21), I(L"Projetos", 22), I(L"Capturas", 23) };
+            std::vector<ctxmenu::Item> items{ I(L"Nova Janela", 1, L"Ctrl+N"), I(L"Nova Aba", 2, L"Ctrl+T"), I(L"Nova Pasta", 3, L"Ctrl+Shift+N"), sep,
+                                              rec, I(L"Compartilhar…", 4), sep, I(L"Obter Informações", 5, L"Alt+Enter"), I(L"Mover para o Lixo", 6, L"Del"), sep,
+                                              I(L"Fechar Janela", 7, L"Ctrl+W") };
+            ctxmenu::Item& d = items[8]; d.disabled = true;
+            SetTimer(h, 10, 8000, nullptr);
+            ctxmenu::SearchNext();
+            for (wchar_t c : g_barraText) PostMessageW(h, WM_CHAR, c, 0);
+            ctxmenu::ShowItems(h, POINT{ 120, 34 }, items);
+            DestroyWindow(h);
+        }
         if (w == 10) { KillTimer(h, 10); ctxmenu::Close(); }
         return 0;
     case WM_APP + 2: EndRename(w != 0); return 0;
@@ -341,6 +359,8 @@ int WINAPI wWinMain(HINSTANCE hi, HINSTANCE, PWSTR, int show) {
     bool dumpBg = dump && argc >= 4 && !wcscmp(argv[3], L"--bg");
     g_demo = argc >= 3 && !wcscmp(argv[1], L"--demo");
     bool dockDemo = argc >= 2 && !wcscmp(argv[1], L"--dock");
+    bool barraDemo = argc >= 2 && !wcscmp(argv[1], L"--barra");
+    if (barraDemo) { dockDemo = true; g_barra = true; if (argc >= 3) g_barraText = argv[2]; }
     if (dockDemo) g_demo = true;
     ctxmenu::Options opt;
     opt.demo = g_demo;
@@ -379,7 +399,7 @@ int WINAPI wWinMain(HINSTANCE hi, HINSTANCE, PWSTR, int show) {
     LoadFolder(start);
     ShowWindow(g_main, dockDemo ? SW_SHOWMINNOACTIVE : show);
     UpdateWindow(g_main);
-    if (dockDemo) { SetTimer(g_main, 11, 300, nullptr); }
+    if (dockDemo) { SetTimer(g_main, g_barra ? 12 : 11, 300, nullptr); }
     else if (g_demo) {
         SetForegroundWindow(g_main);
         // --quente: pré-carrega as extensões como o Finder faz ao abrir, para medir o menu "de verdade"

@@ -1232,6 +1232,7 @@ void ShowAt(int hit, const std::vector<ctxmenu::Item>& items, std::function<void
     // Tahoe (guia, seção 35): o menu abre 1 pt abaixo da barra e 4 pt à esquerda do título (o texto fica a 10 da caixa)
     if (liquid::On()) pt = { wr.left + (LONG)std::lround((g_hits[hit].r.left + 6) * sc), wr.bottom + (LONG)std::lround(sc) };
     SetForegroundWindow(g_owner);  // o menu fecha se a janela dona não estiver na frente
+    ctxmenu::SearchNext();
     int id = ctxmenu::ShowItems(g_owner, pt, items);
     g_closedHit = hit; g_closedHitAt = GetTickCount();
     g_open = -1;
