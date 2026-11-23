@@ -1498,7 +1498,9 @@ Page IlhaDinamica() {
                         [](int i) { SetSetting(L"ilha_estilo", i == 1 ? L"ilha" : i == 2 ? L"notificacao" : L"notch"); });
         ilha.push_back(est);
         ilha.push_back(Toggle(L"Abrir ao passar o ponteiro", on(L"ilha_passar", L"1"), set(L"ilha_passar")));
-        {
+        ilha.push_back(Popup(L"Corpo da ilha", { L"Preto", L"Vidro" }, [] { return Setting(L"ilha_corpo", L"preto") == L"vidro" ? 1 : 0; },
+                             [](int i) { SetSetting(L"ilha_corpo", i == 1 ? L"vidro" : L"preto"); Rebuild(); }));
+        if (Setting(L"ilha_corpo", L"preto") == L"vidro") {
             Row op = Slider(L"Opacidade do vidro da ilha", 0, 100, [] { return NumSetting(L"ilha_opacidade", 45); }, SetNum(L"ilha_opacidade"), L"Transparente", L"Opaco");
             op.hasDef = true; op.def = 45;
             ilha.push_back(op);

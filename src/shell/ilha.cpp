@@ -1611,7 +1611,9 @@ void Paint() {
     const bool leoNotch = Notch() && g_theme == TH_LEOPARD;
     // Liquid Glass body: the backdrop window under the island takes the shape's rect every frame (blur and the lens
     // refraction of the screen behind, like zakisheriff/Liquid-Glass); the tint is ilha_opacidade, darker when open
-    const bool glassBody = pill && Glassy() && g_glass && alpha > 0.01f;
+    // ilha_corpo: "preto" (default, like the notch: an opaque black pill) or "vidro" (Liquid Glass)
+    const bool blackBody = pill && shell::Setting(L"ilha_corpo", L"preto") != L"vidro";
+    const bool glassBody = pill && !blackBody && Glassy() && g_glass && alpha > 0.01f;
     if (g_back) {
         if (glassBody) {
             RECT wr; GetWindowRect(g_wnd, &wr);
@@ -1664,7 +1666,8 @@ void Paint() {
     dc->PushLayer(D2D1::LayerParameters1(D2D1::InfiniteRect(), geo, D2D1_ANTIALIAS_MODE_PER_PRIMITIVE, D2D1::IdentityMatrix(), alpha), nullptr);
     // o corpo: o notch é sempre preto; a pílula muda com o tema
     D2D1_COLOR_F fill = D2D1::ColorF(0, 0, 0, 1);
-    if (pill && Glassy()) {
+    if (blackBody) fill = D2D1::ColorF(0, 0, 0, 1);
+    else if (pill && Glassy()) {
         // Liquid Glass: the glass window underneath does the body (glassBody); without it, smoked glass drawn here
         float grow = std::clamp((p.bottom - p.top - PILL_H) / 40.f, 0.f, 1.f);
         float op = std::clamp((float)_wtof(shell::Setting(L"ilha_opacidade", L"45").c_str()) / 100.f, 0.f, 1.f);
@@ -1692,7 +1695,7 @@ void Paint() {
             dc->FillRectangle(D2D1::RectF(p.left, p.top + band + 1, p.right, p.top + band + 2), br);
         }
     } else dc->FillRectangle(D2D1::RectF(p.left, p.top - 1, p.right, p.bottom), br);
-    if (pill) {
+    if (pill && !blackBody) {
         if (g_theme == TH_LEOPARD) {
             // o verniz do HUD do 10.5: metade de cima mais clara, com corte nítido
             float mid = p.top + std::min(11.f, (p.bottom - p.top) / 2);
@@ -1738,7 +1741,10 @@ void Paint() {
         dc->DrawGeometry(line, br, 1);
         line->Release();
     }
-    if (pill && alpha > 0.01f) {
+    if (blackBody && alpha > 0.01f) {  // black pill: only a hairline so it does not melt into a dark bar
+        br->SetColor(D2D1::ColorF(1, 1, 1, 0.07f * alpha));
+        dc->DrawRoundedRectangle(D2D1::RoundedRect(D2D1::RectF(p.left + 0.5f, p.top + 0.5f, p.right - 0.5f, p.bottom - 0.5f), std::max(0.f, rad - 0.5f), std::max(0.f, rad - 0.5f)), br, 1);
+    } else if (pill && alpha > 0.01f) {
         if (Glassy()) {
             liquid::Rim(dc, p, rad, true, g_theme == TH_GOLDEN ? 1.f : 0.8f, 0.35f);
             // the lens edge: a thin bright line along the bottom half, light bent through the glass (zakisheriff's

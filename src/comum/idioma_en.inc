@@ -1637,3 +1637,4 @@
 { L"Leve", L"Light" },
 { L"Opacidade do vidro da ilha", L"Island glass opacity" },
 { L"%ls livres de %ls", L"%ls free of %ls" },
+{ L"Corpo da ilha", L"Island body" },

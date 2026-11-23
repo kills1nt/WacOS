@@ -1631,3 +1631,4 @@
 { L"Leve", L"Легке" },
 { L"Opacidade do vidro da ilha", L"Непрозорість скла острівця" },
 { L"%ls livres de %ls", L"%ls вільно з %ls" },
+{ L"Corpo da ilha", L"Корпус острівця" },
