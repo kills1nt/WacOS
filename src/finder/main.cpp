@@ -375,7 +375,9 @@ struct TabState {
 static std::vector<TabState> g_tabs(1);
 static int g_curTab = 0;
 const float TAB_H = 30;
-static float TabBarH() { return g_tabs.size() > 1 ? TAB_H : 0.f; }  // a barra só aparece com 2+ abas
+static bool Wac();
+const float WAC_TABS = 40;  // WacOS design: the tab row at the top (Explorer-style tabs and the caption buttons)
+static float TabBarH() { return Wac() ? 0.f : g_tabs.size() > 1 ? TAB_H : 0.f; }  // a barra só aparece com 2+ abas
 const float TRASH_BAR_H = 38;
 static float TrashBarH() { return g_tagView == VIEW_TRASH ? TRASH_BAR_H : 0.f; }  // faixa "Lixeira  [Esvaziar]"
 // Leopard: o Cover Flow do 10.5 é a lista com um painel de capas em perspectiva em cima (a 4ª visão do Finder)
@@ -857,9 +859,10 @@ static D2D1_RECT_F ToolRect(int k) {
         // Etiquetas e ⋯ com 37 cada; busca num círculo de 36 a 8 da borda da janela
         const float B = 36, G = 8;
         auto bx = [&](float right, float w) { return D2D1_RECT_F{ right - w, cy - B / 2, right, cy + B / 2 }; };
-        if (k == TB_BACK) return { Lay::SIDEBAR_W + G, cy - B / 2, Lay::SIDEBAR_W + G + 36.5f, cy + B / 2 };
-        if (k == TB_FWD) return { Lay::SIDEBAR_W + G + 36.5f, cy - B / 2, Lay::SIDEBAR_W + G + 73, cy + B / 2 };
-        float right = s.width - 8 - (Wac() ? 3 * CAP_W + 4 : 0.f);
+        float nx = Wac() ? 12.f : Lay::SIDEBAR_W + G;  // WacOS design: the toolbar row spans the window, arrows at the left edge
+        if (k == TB_BACK) return { nx, cy - B / 2, nx + 36.5f, cy + B / 2 };
+        if (k == TB_FWD) return { nx + 36.5f, cy - B / 2, nx + 73, cy + B / 2 };
+        float right = s.width - 8;
         float sw = std::min(Wac() ? 240.f : 307.f, std::max(160.f, (s.width - Lay::SIDEBAR_W) * 0.35f));
         D2D1_RECT_F search = SearchExpanded() ? D2D1_RECT_F{ right - sw, cy - B / 2, right, cy + B / 2 } : bx(right, 36);
         if (k == TB_SEARCH) return search;
@@ -949,7 +952,7 @@ bool g_tahoeLay;  // g_tahoe já aplicado às medidas (ApplyWindowTheme)
 static D2D1_RECT_F CapRect(int k) {
     int pos = k == 0 ? 0 : k == 2 ? 1 : 2;
     float r = ClientDip().width - pos * CAP_W;
-    return { r - CAP_W, 0, r, Lay::TOOLBAR_H - 8 };
+    return { r - CAP_W, 0, r, WAC_TABS };
 }
 static D2D1_POINT_2F LightCenter(int k) {
     if (Wac()) { auto r = CapRect(k); return { (r.left + r.right) / 2, (r.top + r.bottom) / 2 }; }
@@ -1739,6 +1742,107 @@ static void Undo() {
     int n = RestoreFromBin(orig);
     if (n == 0) { Flash(Tr(L"Os itens não estão mais na Lixeira")); return; }
     if (orig.size() == 1 && SamePath(Parent(orig[0]), g_folder)) g_selectAfterReload = orig[0].substr(orig[0].find_last_of(L'\\') + 1);
+    Reload();
+}
+
+// "New ›" like the Windows Explorer: a text document, a few developer files and every type that registered a ShellNew
+// template (Word, Excel, PowerPoint, RTF, bitmap, compressed folder...). The new file is selected and renamed in place.
+struct NewKind { std::wstring ext, name; int mode = 0; std::wstring data; };  // mode: 0 empty, 1 copy template file, 2 raw data
+static std::vector<NewKind> NewKinds() {
+    std::vector<NewKind> out;
+    auto friendly = [](const std::wstring& ext) {
+        // our own names for the plain types (the system name follows whatever editor owns them: "Text Source File")
+        static const std::pair<const wchar_t*, const wchar_t*> own[] = { { L".txt", L"Documento de Texto" }, { L".md", L"Documento Markdown" },
+            { L".json", L"Arquivo JSON" }, { L".html", L"Documento HTML" }, { L".ps1", L"Script do PowerShell" }, { L".bat", L"Arquivo em Lotes" } };
+        for (auto& o : own) if (ext == o.first) return std::wstring(Tr(o.second));
+        wchar_t b[256] = {}; DWORD n = 256;
+        if (SUCCEEDED(AssocQueryStringW(ASSOCF_NONE, ASSOCSTR_FRIENDLYDOCNAME, ext.c_str(), nullptr, b, &n)) && b[0]) return std::wstring(b);
+        return ext.substr(1) + L" file";
+    };
+    auto shellNew = [&](const std::wstring& ext) -> bool {
+        // HKCR\.ext\ShellNew or HKCR\.ext\<ProgID>\ShellNew
+        std::vector<std::wstring> keys = { ext + L"\\ShellNew" };
+        wchar_t prog[256] = {}; DWORD sz = sizeof(prog);
+        if (RegGetValueW(HKEY_CLASSES_ROOT, ext.c_str(), nullptr, RRF_RT_REG_SZ, nullptr, prog, &sz) == ERROR_SUCCESS && prog[0])
+            keys.push_back(ext + L"\\" + prog + L"\\ShellNew");
+        for (auto& k : keys) {
+            HKEY h; if (RegOpenKeyExW(HKEY_CLASSES_ROOT, k.c_str(), 0, KEY_READ, &h) != ERROR_SUCCESS) continue;
+            NewKind nk; nk.ext = ext; nk.name = friendly(ext);
+            wchar_t v[MAX_PATH * 2] = {}; DWORD vs = sizeof(v);
+            bool ok = false;
+            if (RegQueryValueExW(h, L"NullFile", nullptr, nullptr, nullptr, nullptr) == ERROR_SUCCESS) { nk.mode = 0; ok = true; }
+            else if (RegGetValueW(h, nullptr, L"FileName", RRF_RT_REG_SZ | RRF_RT_REG_EXPAND_SZ, nullptr, v, &vs) == ERROR_SUCCESS && v[0]) {
+                std::wstring f = v;
+                wchar_t ex[MAX_PATH * 2]; ExpandEnvironmentStringsW(f.c_str(), ex, MAX_PATH * 2); f = ex;
+                if (f.find(L'\\') == std::wstring::npos) {
+                    wchar_t win[MAX_PATH]; GetWindowsDirectoryW(win, MAX_PATH);
+                    std::wstring c1 = std::wstring(win) + L"\\ShellNew\\" + f;
+                    wchar_t tpl[MAX_PATH] = {}; SHGetFolderPathW(nullptr, CSIDL_TEMPLATES, nullptr, 0, tpl);
+                    std::wstring c2 = std::wstring(tpl) + L"\\" + f;
+                    f = GetFileAttributesW(c2.c_str()) != INVALID_FILE_ATTRIBUTES ? c2 : c1;
+                }
+                if (GetFileAttributesW(f.c_str()) != INVALID_FILE_ATTRIBUTES) { nk.mode = 1; nk.data = f; ok = true; }
+            } else {
+                BYTE d[4096]; DWORD ds = sizeof(d), t = 0;
+                if (RegQueryValueExW(h, L"Data", nullptr, &t, d, &ds) == ERROR_SUCCESS && ds) {
+                    nk.mode = 2;
+                    if (t == REG_SZ || t == REG_EXPAND_SZ) {  // text data: written as ANSI, like Explorer
+                        std::wstring w((wchar_t*)d, ds / 2); while (!w.empty() && !w.back()) w.pop_back();
+                        for (wchar_t c : w) nk.data.push_back(c);
+                    } else for (DWORD k = 0; k < ds; k++) nk.data.push_back((wchar_t)d[k]);
+                    ok = true;
+                }
+            }
+            RegCloseKey(h);
+            if (ok) { out.push_back(nk); return true; }
+        }
+        return false;
+    };
+    for (auto e : { L".docx", L".xlsx", L".pptx", L".odt", L".ods", L".rtf", L".bmp", L".zip", L".accdb", L".pub", L".psd" }) shellNew(e);
+    NewKind txt; txt.ext = L".txt"; txt.name = friendly(L".txt"); out.insert(out.begin(), txt);
+    for (auto e : { L".md", L".json", L".html", L".ps1", L".bat" }) {  // handy for code: plain empty files
+        bool have = false; for (auto& k : out) if (k.ext == e) have = true;
+        if (!have) { NewKind k; k.ext = e; k.name = friendly(e); out.push_back(k); }
+    }
+    return out;
+}
+static void NewFileOf(const NewKind& k) {
+    std::wstring nm = k.name; if (nm.size() > 1 && IsCharUpperW(nm[0]) && !IsCharUpperW(nm[1])) CharLowerBuffW(&nm[0], 1);  // "New text document"
+    std::wstring base = Tr(L"Novo ") + nm, name = base + k.ext;
+    for (int n = 2; GetFileAttributesW(Join(g_folder, name).c_str()) != INVALID_FILE_ATTRIBUTES; n++) name = base + L" (" + std::to_wstring(n) + L")" + k.ext;
+    std::wstring full = Join(g_folder, name);
+    bool ok = false;
+    if (k.mode == 1) ok = CopyFileW(k.data.c_str(), full.c_str(), TRUE) != 0;
+    else {
+        HANDLE h = CreateFileW(full.c_str(), GENERIC_WRITE, 0, nullptr, CREATE_NEW, FILE_ATTRIBUTE_NORMAL, nullptr);
+        if (h != INVALID_HANDLE_VALUE) {
+            ok = true;
+            if (k.mode == 2) { std::string b; for (wchar_t c : k.data) b.push_back((char)c); DWORD w = 0; WriteFile(h, b.data(), (DWORD)b.size(), &w, nullptr); }
+            CloseHandle(h);
+        }
+    }
+    if (!ok) { Flash(Tr(L"Não foi possível criar o arquivo (erro ") + std::to_wstring(GetLastError()) + L")"); return; }
+    g_search.SetText(L"", false);
+    g_selectAfterReload = name;
+    g_renameAfterReload = true;
+    Reload();
+}
+// Extract a .zip next to itself into a folder with its name (tar.exe ships with Windows 10/11), then reload
+static void ExtractZips(const std::vector<std::wstring>& paths) {
+    for (auto& p : paths) {
+        std::wstring dir = Parent(p), stem = p.substr(p.find_last_of(L'\\') + 1);
+        if (size_t d = stem.find_last_of(L'.'); d != std::wstring::npos) stem.resize(d);
+        std::wstring dest = Join(dir, stem);
+        for (int n = 2; GetFileAttributesW(dest.c_str()) != INVALID_FILE_ATTRIBUTES; n++) dest = Join(dir, stem + L" (" + std::to_wstring(n) + L")");
+        CreateDirectoryW(dest.c_str(), nullptr);
+        std::wstring cmd = L"tar.exe -xf \"" + p + L"\" -C \"" + dest + L"\"";
+        STARTUPINFOW si{ sizeof(si) }; PROCESS_INFORMATION pi{};
+        si.dwFlags = STARTF_USESHOWWINDOW; si.wShowWindow = SW_HIDE;
+        if (CreateProcessW(nullptr, &cmd[0], nullptr, nullptr, FALSE, CREATE_NO_WINDOW, nullptr, dir.c_str(), &si, &pi)) {
+            WaitForSingleObject(pi.hProcess, 120000);
+            CloseHandle(pi.hThread); CloseHandle(pi.hProcess);
+        }
+    }
     Reload();
 }
 
@@ -3429,7 +3533,21 @@ static void DrawIconGrid(ID2D1DeviceContext* dc, const Palette& pal, ID2D1SolidC
             float cx = (lr.left + lr.right) / 2, bw = std::min(lr.right - lr.left - 8, g_icon + 20);
             DrawDiskBar(dc, br, D2D1::RectF(cx - bw / 2, lr.top + 21, cx + bw / 2, lr.top + 26), dUsed, pal);
             br->SetColor(pal.text2);
-            dc->DrawTextW(dText.c_str(), (UINT32)dText.size(), g_tfStatus, D2D1::RectF(lr.left - 6, lr.top + 28, lr.right + 6, lr.top + 44), br, D2D1_DRAW_TEXT_OPTIONS_CLIP);
+            {   // "X free of Y" inside its own cell: wraps to a second line instead of running into the next drive
+                auto cell = ToView(CellDoc(i));
+                float w = std::max(40.f, cell.right - cell.left - 6);
+                IDWriteTextLayout* dl = nullptr;
+                if (SUCCEEDED(gfx::dw->CreateTextLayout(dText.c_str(), (UINT32)dText.size(), g_tfStatus, w, 32, &dl))) {
+                    dl->SetWordWrapping(DWRITE_WORD_WRAPPING_WRAP);
+                    dl->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_CENTER);
+                    dl->SetParagraphAlignment(DWRITE_PARAGRAPH_ALIGNMENT_NEAR);
+                    float x0 = (cell.left + cell.right) / 2 - w / 2;
+                    dc->PushAxisAlignedClip(D2D1::RectF(x0, lr.top + 28, x0 + w, lr.top + 60), D2D1_ANTIALIAS_MODE_ALIASED);
+                    dc->DrawTextLayout({ x0, lr.top + 28 }, dl, br);
+                    dc->PopAxisAlignedClip();
+                    dl->Release();
+                }
+            }
             continue;
         }
         IDWriteTextLayout* tl = nullptr;
@@ -4582,7 +4700,10 @@ static void Render() {
         br->SetColor(MicaColor());
         dc->FillRectangle(D2D1::RectF(0, 0, Wac() ? s.width : Lay::SIDEBAR_W, s.height), br);
         br->SetColor(pal.content);
-        if (Wac()) dc->FillRoundedRectangle(D2D1::RoundedRect(D2D1::RectF(Lay::SIDEBAR_W, Lay::TOOLBAR_H, s.width + 20, s.height + 20), 10, 10), br);
+        if (Wac()) {
+            dc->FillRectangle(D2D1::RectF(0, WAC_TABS, s.width, Lay::TOOLBAR_H), br);           // toolbar row (joins the current tab)
+            dc->FillRectangle(D2D1::RectF(Lay::SIDEBAR_W, Lay::TOOLBAR_H, s.width, s.height), br);  // content
+        }
         else dc->FillRectangle(D2D1::RectF(Lay::SIDEBAR_W, 0, s.width, s.height), br);
     } else if (g_tahoe) {
         // Tahoe: a janela inteira na cor do conteúdo, com a barra lateral num painel de vidro flutuante
@@ -4630,23 +4751,8 @@ static void Render() {
         DrawItems(dc, pal, br);
         dc->PopAxisAlignedClip();
 
-        ID2D1Factory* f = nullptr; dc->GetFactory(&f);
-        ID2D1PathGeometry* g = nullptr; ID2D1GeometrySink* sk = nullptr;
-        const float R = 10, x0 = Lay::SIDEBAR_W, y0 = Lay::TOOLBAR_H;
-        if (f && SUCCEEDED(f->CreatePathGeometry(&g)) && SUCCEEDED(g->Open(&sk))) {  // re-paint the Mica outside the corner arc
-            sk->BeginFigure({ x0, y0 }, D2D1_FIGURE_BEGIN_FILLED);
-            sk->AddLine({ x0 + R, y0 });
-            sk->AddArc(D2D1::ArcSegment({ x0, y0 + R }, { R, R }, 0, D2D1_SWEEP_DIRECTION_COUNTER_CLOCKWISE, D2D1_ARC_SIZE_SMALL));
-            sk->EndFigure(D2D1_FIGURE_END_CLOSED);
-            sk->Close(); sk->Release();
-            br->SetColor(MicaColor());
-            dc->FillGeometry(g, br);
-            br->SetColor(g_dark ? D2D1::ColorF(1, 1, 1, 0.06f) : D2D1::ColorF(0, 0, 0, 0.06f));  // hairline along the layer edge
-            dc->DrawLine({ x0 + R, y0 + 0.5f }, { s.width, y0 + 0.5f }, br, 1);
-            dc->DrawLine({ x0 + 0.5f, y0 + R }, { x0 + 0.5f, s.height }, br, 1);
-        }
-        if (g) g->Release();
-        if (f) f->Release();
+        br->SetColor(g_dark ? D2D1::ColorF(1, 1, 1, 0.07f) : D2D1::ColorF(0, 0, 0, 0.07f));  // hairline under the toolbar row
+        dc->DrawLine({ 0, Lay::TOOLBAR_H + 0.5f }, { s.width, Lay::TOOLBAR_H + 0.5f }, br, 1);
     } else {
     DrawItems(dc, pal, br);
     D2D1_RECT_F top{ Lay::SIDEBAR_W, 0, s.width, Lay::TOOLBAR_H };
@@ -5002,7 +5108,9 @@ static void ShowMacMenu(POINT screen, const std::wstring& folder, const std::vec
     std::vector<IAssocHandler*> handlers;
     enum { M_OPEN = 1, M_OPENTAB, M_TRASH, M_INFO, M_RENAME, M_ZIP, M_DUP, M_ALIAS, M_QL, M_COPY, M_SHARE, M_MORE, M_NEWFOLDER, M_PASTE,
            M_VIEWOPTS, M_TERMINAL, M_TAGNONE, M_RUNPS, M_RUNADMIN, M_COPYPATH, M_HIDDEN, M_TAG0 = 40, M_SORT0 = 60, M_OTHER = 99, M_WITH0 = 100,
-           M_PCOLOR0 = 200, M_PEMOJI0 = 220, M_PRESET = 260 };
+           M_PCOLOR0 = 200, M_PEMOJI0 = 220, M_PRESET = 260, M_CUT = 270, M_EXTRACT, M_NEWWIN, M_TERMHERE, M_FAV, M_REFRESH, M_PROPS,
+           M_NEW0 = 300 };
+    std::vector<NewKind> kinds;
     if (!paths.empty()) {
         bool allDirs = true;
         for (auto& p : paths) if (!(GetFileAttributesW(p.c_str()) & FILE_ATTRIBUTE_DIRECTORY)) allDirs = false;
@@ -5051,7 +5159,17 @@ static void ShowMacMenu(POINT screen, const std::wstring& folder, const std::vec
             with.sub.push_back(I(Tr(L"Outro…"), M_OTHER));
             items.push_back(with);
         }
+        if (allDirs && paths.size() == 1) {
+            items.push_back(I(Tr(L"Abrir em Nova Janela"), M_NEWWIN, L"", 0xE8A7));
+            items.push_back(I(Tr(L"Abrir no Terminal"), M_TERMHERE, L"", 0xE756));
+            items.push_back(I(Tr(L"Adicionar à Barra Lateral"), M_FAV, L"", 0xE718));
+        }
+        {   bool allZip = true;
+            for (auto& p : paths) { auto e = extOf(p); if (e != L".zip") allZip = false; }
+            if (allZip) items.push_back(I(Tr(L"Extrair Tudo"), M_EXTRACT, L"", 0xE8B7));
+        }
         items.push_back(sep);
+        items.push_back(I(Tr(L"Recortar"), M_CUT, L"", 0xE8C6));
         items.push_back(I(Tr(L"Mover para o Lixo"), M_TRASH, L"", 0xE74D));
         items.push_back(sep);
         items.push_back(I(Tr(L"Obter Informações"), M_INFO, L"", 0xE946));
@@ -5085,9 +5203,18 @@ static void ShowMacMenu(POINT screen, const std::wstring& folder, const std::vec
         tagsItem.sub.push_back(I(Tr(L"Remover Todas as Etiquetas"), M_TAGNONE));
         items.push_back(tagsItem);
         items.push_back(sep);
+        items.push_back(I(Tr(L"Propriedades do Windows"), M_PROPS, L"", 0xE90F));
         items.push_back(I(Tr(L"Ações Rápidas"), M_MORE, L"", 0xE945));
     } else {  // fundo da pasta
         items.push_back(I(Tr(L"Nova Pasta"), M_NEWFOLDER, L"", 0xE8F4));
+        {   Item nw = I(Tr(L"Novo"), 0, L"", 0xE710);
+            kinds = NewKinds();
+            nw.sub.push_back(I(Tr(L"Pasta"), M_NEWFOLDER, L"", 0xE8F4));
+            nw.sub.push_back(sep);
+            for (int k = 0; k < (int)kinds.size(); k++) nw.sub.push_back(I(kinds[k].name, M_NEW0 + k, L"", 0xE8A5));
+            items.push_back(nw);
+        }
+        items.push_back(I(Tr(L"Atualizar"), M_REFRESH, L"F5", 0xE72C));
         items.push_back(sep);
         items.push_back(I(Tr(L"Obter Informações"), M_INFO, L"", 0xE946));
         if (!folder.empty()) items.push_back(I(CopyPathLabel({ folder }), M_COPYPATH, L"", 0xE71B));
@@ -5133,6 +5260,7 @@ static void ShowMacMenu(POINT screen, const std::wstring& folder, const std::vec
         if (k == g_sortCol) g_sortAsc = !g_sortAsc; else { g_sortCol = (SortCol)k; g_sortAsc = k == SORT_NAME || k == SORT_KIND; }
         Resort();
     }
+    if (id >= M_NEW0 && id < M_NEW0 + (int)kinds.size()) NewFileOf(kinds[id - M_NEW0]);
     switch (id) {
     case M_OPEN: OpenSelection(); break;
     case M_OPENTAB: for (auto& p : paths) NewTab(p); break;
@@ -5160,6 +5288,19 @@ static void ShowMacMenu(POINT screen, const std::wstring& folder, const std::vec
     case M_INFO: GetInfo(paths.empty() ? std::vector<std::wstring>{ folder } : paths); break;
     case M_RENAME: for (int i = 0; i < (int)g_items.size(); i++) if (SamePath(g_items[i].path, paths[0])) { StartRename(i); break; } break;
     case M_ZIP: CompressItems(paths); break;
+    case M_EXTRACT: ExtractZips(paths); break;
+    case M_CUT: RunVerb("cut"); break;
+    case M_NEWWIN: { wchar_t exe[MAX_PATH]; ExePath(exe, MAX_PATH); ShellExecuteW(nullptr, L"open", exe, (L"\"" + paths[0] + L"\"").c_str(), nullptr, SW_SHOWNORMAL); break; }
+    case M_TERMHERE: {
+        wchar_t exe[MAX_PATH]; ExePath(exe, MAX_PATH); PathRemoveFileSpecW(exe);
+        std::wstring term = std::wstring(exe) + L"\\WacOSTerminal.exe";
+        if (GetFileAttributesW(term.c_str()) != INVALID_FILE_ATTRIBUTES) ShellExecuteW(nullptr, L"open", term.c_str(), (L"--pasta \"" + paths[0] + L"\"").c_str(), nullptr, SW_SHOWNORMAL);
+        else ShellExecuteW(nullptr, L"open", L"powershell.exe", L"-NoExit", paths[0].c_str(), SW_SHOWNORMAL);
+        break;
+    }
+    case M_FAV: AddFavorite(paths[0], 1 << 20); break;
+    case M_REFRESH: Reload(); break;
+    case M_PROPS: ctxmenu::InvokeVerb(g_hwnd, base, paths, "properties"); break;
     case M_DUP: DuplicateItems(paths); break;
     case M_ALIAS: MakeAlias(paths); break;
     case M_QL: QlToggle(); break;
@@ -5729,23 +5870,110 @@ static void SwitchTab(int i) {
 }
 
 // Geometria: abas de largura igual e o botão "+" na ponta direita.
+static D2D1_RECT_F WacTabRect(int i) {  // Explorer-style: tabs up to 220 wide from the left, "+" right after them
+    auto s = ClientDip();
+    float avail = s.width - 3 * CAP_W - 8 - 44 - 8;
+    float w = std::clamp(avail / std::max<size_t>(1, g_tabs.size()), 90.f, 220.f);
+    float x = 8 + i * w;
+    return { x, 6, x + w, WAC_TABS };
+}
 static D2D1_RECT_F TabRect(int i) {
+    if (Wac()) return WacTabRect(i);
     auto s = ClientDip();
     float w = (s.width - Lay::SIDEBAR_W - 34) / g_tabs.size();
     float x = Lay::SIDEBAR_W + i * w;
     return { x, Lay::TOOLBAR_H, x + w, Lay::TOOLBAR_H + TAB_H };
 }
-static D2D1_RECT_F TabCloseRect(int i) { auto r = TabRect(i); return { r.left + 12, r.top + 7, r.left + 28, r.top + 23 }; }
-static D2D1_RECT_F TabPlusRect() { auto s = ClientDip(); return { s.width - 34, Lay::TOOLBAR_H, s.width, Lay::TOOLBAR_H + TAB_H }; }
+static D2D1_RECT_F TabCloseRect(int i) {
+    auto r = TabRect(i);
+    if (Wac()) { float cy = (r.top + r.bottom) / 2; return { r.right - 30, cy - 10, r.right - 10, cy + 10 }; }
+    return { r.left + 12, r.top + 7, r.left + 28, r.top + 23 };
+}
+static D2D1_RECT_F TabPlusRect() {
+    if (Wac()) { auto r = WacTabRect((int)g_tabs.size()); return { r.left + 4, 9, r.left + 36, 37 }; }
+    auto s = ClientDip(); return { s.width - 34, Lay::TOOLBAR_H, s.width, Lay::TOOLBAR_H + TAB_H }; }
 static int g_hoverTab = -1;
 
 static int HitTab(D2D1_POINT_2F p) {
+    if (Wac()) { if (p.y >= WAC_TABS) return -1; for (int i = 0; i < (int)g_tabs.size(); i++) if (In(TabRect(i), p)) return i; return -1; }
     if (TabBarH() == 0 || p.y < Lay::TOOLBAR_H || p.y >= Lay::TOOLBAR_H + TAB_H) return -1;
     for (int i = 0; i < (int)g_tabs.size(); i++) if (In(TabRect(i), p)) return i;
     return -1;
 }
 
+// WacOS design: tabs like the Windows 11 Explorer — the current one is a card in the toolbar colour that joins the
+// toolbar row below it (with the little outward feet), the others are plain text with a hover fill
+static void DrawWacTabs(ID2D1DeviceContext* dc, const Palette& pal, ID2D1SolidColorBrush* br) {
+    ID2D1Factory* f = nullptr; dc->GetFactory(&f);
+    static IDWriteTextFormat* ic;
+    if (!ic && gfx::dw && SUCCEEDED(gfx::dw->CreateTextFormat(L"Segoe Fluent Icons", nullptr, DWRITE_FONT_WEIGHT_NORMAL, DWRITE_FONT_STYLE_NORMAL, DWRITE_FONT_STRETCH_NORMAL, 13, L"", &ic)) && ic) {
+        ic->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_CENTER); ic->SetParagraphAlignment(DWRITE_PARAGRAPH_ALIGNMENT_CENTER);
+    }
+    const float R = 8;
+    for (int i = 0; i < (int)g_tabs.size(); i++) {
+        D2D1_RECT_F r = TabRect(i);
+        bool cur = i == g_curTab, hov = i == g_hoverTab, drop = i == g_dropTab;
+        if (cur && f) {
+            ID2D1PathGeometry* g = nullptr; ID2D1GeometrySink* sk = nullptr;
+            if (SUCCEEDED(f->CreatePathGeometry(&g)) && SUCCEEDED(g->Open(&sk))) {
+                float b = WAC_TABS + 1, ft = 6;  // foot radius
+                sk->BeginFigure({ r.left - ft, b }, D2D1_FIGURE_BEGIN_FILLED);
+                sk->AddArc(D2D1::ArcSegment({ r.left, b - ft }, { ft, ft }, 0, D2D1_SWEEP_DIRECTION_COUNTER_CLOCKWISE, D2D1_ARC_SIZE_SMALL));
+                sk->AddLine({ r.left, r.top + R });
+                sk->AddArc(D2D1::ArcSegment({ r.left + R, r.top }, { R, R }, 0, D2D1_SWEEP_DIRECTION_CLOCKWISE, D2D1_ARC_SIZE_SMALL));
+                sk->AddLine({ r.right - R, r.top });
+                sk->AddArc(D2D1::ArcSegment({ r.right, r.top + R }, { R, R }, 0, D2D1_SWEEP_DIRECTION_CLOCKWISE, D2D1_ARC_SIZE_SMALL));
+                sk->AddLine({ r.right, b - ft });
+                sk->AddArc(D2D1::ArcSegment({ r.right + ft, b }, { ft, ft }, 0, D2D1_SWEEP_DIRECTION_COUNTER_CLOCKWISE, D2D1_ARC_SIZE_SMALL));
+                sk->EndFigure(D2D1_FIGURE_END_CLOSED);
+                sk->Close(); sk->Release();
+                br->SetColor(pal.content);
+                dc->FillGeometry(g, br);
+            }
+            if (g) g->Release();
+        } else if (hov || drop) {
+            br->SetColor(drop ? D2D1::ColorF(pal.accent.r, pal.accent.g, pal.accent.b, 0.25f) : g_dark ? D2D1::ColorF(1, 1, 1, 0.06f) : D2D1::ColorF(0, 0, 0, 0.05f));
+            dc->FillRoundedRectangle(D2D1::RoundedRect(D2D1::RectF(r.left + 2, r.top + 2, r.right - 2, r.bottom - 4), 6, 6), br);
+        }
+        if (!cur && !hov && i + 1 < (int)g_tabs.size() && i + 1 != g_curTab && i + 1 != g_hoverTab) {
+            br->SetColor(pal.line);
+            dc->DrawLine({ r.right + 0.5f, r.top + 9 }, { r.right + 0.5f, r.bottom - 9 }, br, 1);
+        }
+        float cy = (r.top + r.bottom) / 2;
+        if (ic) { br->SetColor(tahoe::Accent(g_dark)); dc->DrawTextW(L"\xE8B7", 1, ic, D2D1::RectF(r.left + 8, cy - 9, r.left + 28, cy + 9), br); }
+        std::wstring title = TabTitle(i);
+        br->SetColor(cur ? pal.text : pal.text2);
+        IDWriteTextLayout* tl = nullptr;
+        float tw = r.right - r.left - 34 - ((cur || hov) ? 30 : 10);
+        if (tw > 8 && SUCCEEDED(gfx::dw->CreateTextLayout(title.c_str(), (UINT32)title.size(), g_tfQlButton, tw, r.bottom - r.top, &tl))) {
+            tl->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_LEADING);
+            tl->SetParagraphAlignment(DWRITE_PARAGRAPH_ALIGNMENT_CENTER);
+            tl->SetWordWrapping(DWRITE_WORD_WRAPPING_NO_WRAP);
+            DWRITE_TRIMMING tr{ DWRITE_TRIMMING_GRANULARITY_CHARACTER, 0, 0 };
+            IDWriteInlineObject* ell = nullptr; gfx::dw->CreateEllipsisTrimmingSign(g_tfQlButton, &ell);
+            tl->SetTrimming(&tr, ell);
+            dc->DrawTextLayout({ r.left + 34, r.top }, tl, br, D2D1_DRAW_TEXT_OPTIONS_CLIP);
+            if (ell) ell->Release();
+            tl->Release();
+        }
+        if ((cur || hov) && g_tabs.size() > 1) {  // ✕
+            auto c = TabCloseRect(i);
+            float cx = (c.left + c.right) / 2, yy = (c.top + c.bottom) / 2;
+            br->SetColor(pal.text2);
+            Line(dc, br, cx - 3.5f, yy - 3.5f, cx + 3.5f, yy + 3.5f, 1.2f);
+            Line(dc, br, cx - 3.5f, yy + 3.5f, cx + 3.5f, yy - 3.5f, 1.2f);
+        }
+    }
+    auto pr = TabPlusRect();  // +
+    float cx = (pr.left + pr.right) / 2, cy = (pr.top + pr.bottom) / 2;
+    br->SetColor(pal.text2);
+    Line(dc, br, cx - 5, cy, cx + 5, cy, 1.3f);
+    Line(dc, br, cx, cy - 5, cx, cy + 5, 1.3f);
+    if (f) f->Release();
+}
+
 static void DrawTabBar(ID2D1DeviceContext* dc, const Palette& pal, ID2D1SolidColorBrush* br) {
+    if (Wac()) { DrawWacTabs(dc, pal, br); return; }
     if (TabBarH() == 0) return;
     auto s = ClientDip();
     D2D1_RECT_F bar{ Lay::SIDEBAR_W, Lay::TOOLBAR_H, s.width, Lay::TOOLBAR_H + TAB_H };
@@ -5808,6 +6036,15 @@ static void DrawTabBar(ID2D1DeviceContext* dc, const Palette& pal, ID2D1SolidCol
 
 // Clique na barra de abas: true se consumido.
 static bool TabClick(D2D1_POINT_2F p, bool middle) {
+    if (Wac()) {
+        if (p.y >= WAC_TABS) return false;
+        if (In(TabPlusRect(), p)) { if (!middle) NewTab(g_folder.empty() ? KnownFolder(FOLDERID_Profile) : g_folder); return true; }
+        int i = HitTab(p);
+        if (i < 0) return false;  // empty tab row: drags the window (HTCAPTION)
+        if (g_tabs.size() > 1 && (middle || In(TabCloseRect(i), p))) CloseTab(i);
+        else SwitchTab(i);
+        return true;
+    }
     if (TabBarH() == 0 || p.x < Lay::SIDEBAR_W || p.y < Lay::TOOLBAR_H || p.y >= Lay::TOOLBAR_H + TAB_H) return false;
     if (In(TabPlusRect(), p)) { if (!middle) NewTab(g_folder.empty() ? KnownFolder(FOLDERID_Profile) : g_folder); return true; }
     int i = HitTab(p);
@@ -6292,7 +6529,7 @@ static LRESULT HitTestNC(HWND h, LPARAM l) {
     }
     D2D1_POINT_2F d = ToDip(p.x, p.y);
     if (g_ql && In(QlPanel(), d)) return HTCLIENT;  // o Quick Look fica por cima da barra
-    if (d.y < Lay::TOOLBAR_H && !OverLightsArea(d) && HitTool(d) < 0) return HTCAPTION;  // arrastar a janela
+    if (d.y < Lay::TOOLBAR_H && !OverLightsArea(d) && HitTool(d) < 0 && HitTab(d) < 0 && !(Wac() && In(TabPlusRect(), d))) return HTCAPTION;  // arrastar a janela
     return HTCLIENT;
 }
 
@@ -6394,6 +6631,9 @@ static void ApplyWindowTheme() {
     ListLay::HEADER_H = leoLay ? 17.f : 28.f;
     g_rowsDirty = true;
     Lay::SIDE_TOP = leoLay ? Lay::TOOLBAR_H + 8 : 47.f;
+    if (Wac()) {  // tab row on top, the toolbar row under it, then the sidebar and the content
+        Lay::TOOLBAR_H = WAC_TABS + 50; Lay::TOOL_CY = WAC_TABS + 25; Lay::SIDE_TOP = Lay::TOOLBAR_H + 8;
+    }
     g_sideClipTop = Lay::SIDE_TOP;
     BOOL dark = g_dark;
     tags::Tema(g_tahoe, g_dark);
