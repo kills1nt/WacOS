@@ -172,6 +172,7 @@ static bool g_itemsScene;  // Tahoe: o conteúdo rola por baixo da barra de ferr
 static bool g_tahoe;  // tema macOS Tahoe (liquid_glass=1 no ajustes.txt do Shell): barra lateral flutuante e cápsulas de vidro
 static bool g_hoverLights;
 static int g_pressLight = -1;
+static int g_hotCap = -1;  // WacOS design: caption button under the pointer
 
 static int g_pressTool = -1;
 static bool g_sliderDrag;
@@ -821,6 +822,9 @@ static bool SearchExpanded() { return g_searchFocus || !g_search.text.empty() ||
 
 // Tahoe: um botão só para a visão (ícone da atual + ⌃⌄), como no macOS 26
 static bool Golden();
+static bool Wac() { return g_tahoe && tahoe::Wac(); }
+// WacOS design: Windows caption buttons at the top right, 46 pt wide over the toolbar height (close at the edge)
+const float CAP_W = 46;
 // macOS 27 Golden Gate: os quatro modos de visualização voltam a ficar abertos numa cápsula (se couber)
 static bool WideToolbar() { return Golden() ? ClientDip().width - Lay::SIDEBAR_W >= 560 : !g_tahoe && ClientDip().width - Lay::SIDEBAR_W >= 650; }  // estreita: seletor de visão vira um botão (650 = botões da direita + voltar/avançar + um pedaço do título)
 
@@ -855,8 +859,8 @@ static D2D1_RECT_F ToolRect(int k) {
         auto bx = [&](float right, float w) { return D2D1_RECT_F{ right - w, cy - B / 2, right, cy + B / 2 }; };
         if (k == TB_BACK) return { Lay::SIDEBAR_W + G, cy - B / 2, Lay::SIDEBAR_W + G + 36.5f, cy + B / 2 };
         if (k == TB_FWD) return { Lay::SIDEBAR_W + G + 36.5f, cy - B / 2, Lay::SIDEBAR_W + G + 73, cy + B / 2 };
-        float right = s.width - 8;
-        float sw = std::min(307.f, std::max(160.f, (s.width - Lay::SIDEBAR_W) * 0.35f));
+        float right = s.width - 8 - (Wac() ? 3 * CAP_W + 4 : 0.f);
+        float sw = std::min(Wac() ? 240.f : 307.f, std::max(160.f, (s.width - Lay::SIDEBAR_W) * 0.35f));
         D2D1_RECT_F search = SearchExpanded() ? D2D1_RECT_F{ right - sw, cy - B / 2, right, cy + B / 2 } : bx(right, 36);
         if (k == TB_SEARCH) return search;
         // ⋯ leva a setinha ▾ (o círculo fica 7,5 à esquerda do meio): ele ganha a largura e Compartilhar/Etiquetas
@@ -942,12 +946,19 @@ static void SetIconSizeFromSlider(float x);
 // Botões da janela (fechar, minimizar, maximizar), no canto superior esquerdo
 bool g_tahoeLay;  // g_tahoe já aplicado às medidas (ApplyWindowTheme)
 // padrão do projeto: 14 pt, 23 entre centros; Tahoe (guia, seção 42): áreas de 16 × 16 em x 18 / 41 / 64 (centros 26, 49, 72)
+static D2D1_RECT_F CapRect(int k) {
+    int pos = k == 0 ? 0 : k == 2 ? 1 : 2;
+    float r = ClientDip().width - pos * CAP_W;
+    return { r - CAP_W, 0, r, Lay::TOOLBAR_H - 8 };
+}
 static D2D1_POINT_2F LightCenter(int k) {
+    if (Wac()) { auto r = CapRect(k); return { (r.left + r.right) / 2, (r.top + r.bottom) / 2 }; }
     if (!g_tahoeLay && tahoe::Leopard()) return { 14.5f + k * 21.f, 12.f };  // Leopard: na linha do título (22 px), 21 entre centros
     return { (g_tahoeLay ? 26.f : 23.f) + k * 23.f, Lay::TOOL_CY };
 }
 
 static int HitLight(D2D1_POINT_2F p) {
+    if (Wac()) { for (int k = 0; k < 3; k++) if (In(CapRect(k), p)) return k; return -1; }
     for (int k = 0; k < 3; k++) {
         auto c = LightCenter(k);
         if (std::fabs(p.x - c.x) <= 8 && std::fabs(p.y - c.y) <= 8) return k;
@@ -955,7 +966,7 @@ static int HitLight(D2D1_POINT_2F p) {
     return -1;
 }
 
-static bool OverLightsArea(D2D1_POINT_2F p) { return p.x >= 5 && p.x < LightCenter(2).x + 15 && std::fabs(p.y - LightCenter(0).y) <= 10; }
+static bool OverLightsArea(D2D1_POINT_2F p) { if (Wac()) return HitLight(p) >= 0; return p.x >= 5 && p.x < LightCenter(2).x + 15 && std::fabs(p.y - LightCenter(0).y) <= 10; }
 // borda da barra lateral (abaixo da barra de cima): arrastar muda a largura
 static bool OverSideEdge(D2D1_POINT_2F p) { return p.y >= Lay::TOOLBAR_H && std::fabs(p.x - Lay::SIDEBAR_W) <= 4; }
 static bool g_sideResize;
@@ -1864,7 +1875,8 @@ struct Palette {
 static Palette ColorsBase();
 static Palette Colors() {  // Tahoe: o fundo da janela leva 10 % da cor do papel de parede (tahoe::Tint)
     Palette p = ColorsBase();
-    if (g_tahoe && tahoe::Golden()) p.content = g_dark ? D2D1::ColorF(30 / 255.f, 30 / 255.f, 30 / 255.f, 1) : D2D1::ColorF(1, 1, 1, 1);  // Golden Gate: branco puro (medido)
+    if (g_tahoe && tahoe::Wac()) p.content = g_dark ? D2D1::ColorF(37 / 255.f, 36 / 255.f, 42 / 255.f, 1) : D2D1::ColorF(251 / 255.f, 250 / 255.f, 253 / 255.f, 1);  // WacOS design: the content layer, a step lighter than the Mica
+    else if (g_tahoe && tahoe::Golden()) p.content = g_dark ? D2D1::ColorF(30 / 255.f, 30 / 255.f, 30 / 255.f, 1) : D2D1::ColorF(1, 1, 1, 1);  // Golden Gate: branco puro (medido)
     else if (g_tahoe) p.content = tahoe::Tint(p.content);
     p.accent = tahoe::Accent(false);  // Ajustes > Aparência > Cor de destaque (seleção, ícones da barra lateral...)
     if (!g_tahoe && tahoe::Leopard()) p.side = leopard::Sidebar(g_winActive, g_dark);  // Leopard: barra lateral azul-acinzentada, opaca
@@ -2365,7 +2377,37 @@ static void DrawDocument(ID2D1DeviceContext* dc, D2D1_RECT_F box, const std::wst
     }
 }
 
+static void DrawCaptionButtons(ID2D1DeviceContext* dc, ID2D1SolidColorBrush* br) {
+    static IDWriteTextFormat* tf;
+    if (!tf && gfx::dw) {
+        if (SUCCEEDED(gfx::dw->CreateTextFormat(L"Segoe Fluent Icons", nullptr, DWRITE_FONT_WEIGHT_NORMAL, DWRITE_FONT_STYLE_NORMAL, DWRITE_FONT_STRETCH_NORMAL, 10, L"", &tf)) && tf) {
+            tf->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_CENTER);
+            tf->SetParagraphAlignment(DWRITE_PARAGRAPH_ALIGNMENT_CENTER);
+        }
+    }
+    float R = IsZoomed(g_hwnd) ? 0.f : tahoe::Radius(g_hwnd);
+    for (int k = 0; k < 3; k++) {
+        D2D1_RECT_F r = CapRect(k);
+        bool hot = g_hoverLights && g_hotCap == k, down = hot && g_pressLight == k;
+        if (hot) {
+            br->SetColor(k == 0 ? D2D1::ColorF(0.769f, 0.169f, 0.110f, down ? 0.85f : 1.f)
+                                : g_dark ? D2D1::ColorF(1, 1, 1, down ? 0.06f : 0.09f) : D2D1::ColorF(0, 0, 0, down ? 0.05f : 0.07f));
+            if (k == 0 && R > 0) {  // close sits in the window corner: follow its curve
+                dc->PushAxisAlignedClip(r, D2D1_ANTIALIAS_MODE_PER_PRIMITIVE);
+                dc->FillRoundedRectangle(D2D1::RoundedRect(D2D1::RectF(r.left - R, r.top, r.right, r.bottom + R), R, R), br);
+                dc->PopAxisAlignedClip();
+            } else dc->FillRectangle(r, br);
+        }
+        if (!tf) continue;
+        float a = g_winActive || g_hoverLights ? 0.9f : 0.45f;
+        br->SetColor(hot && k == 0 ? D2D1::ColorF(1, 1, 1, 1) : g_dark ? D2D1::ColorF(1, 1, 1, a) : D2D1::ColorF(0, 0, 0, a));
+        const wchar_t* g = k == 0 ? L"\xE8BB" : k == 1 ? L"\xE921" : IsZoomed(g_hwnd) ? L"\xE923" : L"\xE922";
+        dc->DrawTextW(g, 1, tf, r, br);
+    }
+}
+
 static void DrawLights(ID2D1DeviceContext* dc, ID2D1SolidColorBrush* br) {
+    if (Wac()) { DrawCaptionButtons(dc, br); return; }
     // cores do macOS medidas na referência: preenchimento e aro de 0,5 pt um tom abaixo
     static const D2D1_COLOR_F fill_c[3] = { D2D1::ColorF(1.0f, 0.373f, 0.345f), D2D1::ColorF(0.996f, 0.737f, 0.180f), D2D1::ColorF(0.157f, 0.784f, 0.251f) }; const D2D1_COLOR_F* fill = semaforo::Pick(fill_c, semaforo::FILL);
     static const D2D1_COLOR_F ring_c[3] = { D2D1::ColorF(0.886f, 0.275f, 0.247f), D2D1::ColorF(0.882f, 0.631f, 0.086f), D2D1::ColorF(0.071f, 0.675f, 0.157f) }; const D2D1_COLOR_F* ring = semaforo::Pick(ring_c, semaforo::RING);
@@ -2527,7 +2569,9 @@ static void DrawSidebar(ID2D1DeviceContext* dc, const Palette& pal, ID2D1SolidCo
             dc->FillRectangle(D2D1::RectF(0, full.top, Lay::SIDEBAR_W, full.top + 1), br);
         } else
         if (cur || k == g_hoverSide) {
-            br->SetColor(cur ? (g_tahoe ? (g_dark ? D2D1::ColorF(1, 1, 1, 0.09f) : D2D1::ColorF(0, 0, 0, 0.07f))
+            D2D1_COLOR_F acc = tahoe::Accent(g_dark);
+            if (cur && Wac()) br->SetColor(D2D1::ColorF(acc.r, acc.g, acc.b, g_dark ? 0.26f : 0.18f));  // WacOS design: a soft accent tint
+            else br->SetColor(cur ? (g_tahoe ? (g_dark ? D2D1::ColorF(1, 1, 1, 0.09f) : D2D1::ColorF(0, 0, 0, 0.07f))
                                         : (g_dark ? D2D1::ColorF(1, 1, 1, 0.14f) : D2D1::ColorF(0, 0, 0, 0.10f))) : pal.hover);
             dc->FillRoundedRectangle(D2D1::RoundedRect(row, rowR, rowR), br);
         }
@@ -4506,6 +4550,12 @@ static void DrawGoTo(ID2D1DeviceContext* dc, const Palette& pal, ID2D1SolidColor
     }
 }
 
+// the window background of the Golden Gate / WacOS layout (sidebar and, in the WacOS design, the toolbar row)
+static D2D1_COLOR_F MicaColor() {
+    if (Wac()) return g_dark ? D2D1::ColorF(29 / 255.f, 28 / 255.f, 33 / 255.f, 1) : D2D1::ColorF(242 / 255.f, 241 / 255.f, 245 / 255.f, 1);
+    return g_dark ? D2D1::ColorF(43 / 255.f, 41 / 255.f, 40 / 255.f, 1) : D2D1::ColorF(237 / 255.f, 237 / 255.f, 236 / 255.f, 1);
+}
+
 static void Render() {
     QlSyncMedia();
     media::UpdateFrame();
@@ -4529,10 +4579,11 @@ static void Render() {
     if (Golden()) {
         pal.bar = pal.content;
         tahoe::SetPanel(g_hwnd, D2D1::RectF(0, 0, 0, 0), 0);
-        br->SetColor(g_dark ? D2D1::ColorF(43 / 255.f, 41 / 255.f, 40 / 255.f, 1) : D2D1::ColorF(237 / 255.f, 237 / 255.f, 236 / 255.f, 1));
-        dc->FillRectangle(D2D1::RectF(0, 0, Lay::SIDEBAR_W, s.height), br);
+        br->SetColor(MicaColor());
+        dc->FillRectangle(D2D1::RectF(0, 0, Wac() ? s.width : Lay::SIDEBAR_W, s.height), br);
         br->SetColor(pal.content);
-        dc->FillRectangle(D2D1::RectF(Lay::SIDEBAR_W, 0, s.width, s.height), br);
+        if (Wac()) dc->FillRoundedRectangle(D2D1::RoundedRect(D2D1::RectF(Lay::SIDEBAR_W, Lay::TOOLBAR_H, s.width + 20, s.height + 20), 10, 10), br);
+        else dc->FillRectangle(D2D1::RectF(Lay::SIDEBAR_W, 0, s.width, s.height), br);
     } else if (g_tahoe) {
         // Tahoe: a janela inteira na cor do conteúdo, com a barra lateral num painel de vidro flutuante
         // (o desfoque da janela aparece só dentro dele); barras de cima e de baixo sem faixa nem divisa
@@ -4563,7 +4614,7 @@ static void Render() {
         br->SetColor(pal.content);
         dc->FillRectangle(D2D1::RectF(Lay::SIDEBAR_W, 0, s.width, s.height), br);
     }
-    ID2D1DeviceContext* idc = g_tahoe ? tahoe::SceneBegin(dc, 0, s, g_dpi) : nullptr;
+    ID2D1DeviceContext* idc = g_tahoe && !Wac() ? tahoe::SceneBegin(dc, 0, s, g_dpi) : nullptr;
     if (idc) {  // Tahoe: o conteúdo rola por baixo da barra de ferramentas, desfocado e sumindo (sem faixa opaca)
         g_itemsScene = true;
         DrawItems(idc, pal, br);
@@ -4572,6 +4623,30 @@ static void Render() {
         { static int n; if (n++ < 2) Log(L"cena: conteúdo %.2f %.2f %.2f %.2f", pal.content.r, pal.content.g, pal.content.b, pal.content.a); }
         tahoe::SceneDraw(dc, 0, D2D1::RectF(Lay::SIDEBAR_W, 0, s.width, s.height - Lay::FOOTER_H), Lay::TOOLBAR_H + 10, D2D1::ColorF(pal.content.r, pal.content.g, pal.content.b, 0.9f));
         if (g_view == View::List) DrawListHeader(dc, pal, br);
+    } else if (Wac()) {
+        // WacOS design: the items live on the content layer (rounded top-left corner); the toolbar stays on the Mica
+
+        dc->PushAxisAlignedClip(D2D1::RectF(Lay::SIDEBAR_W, Lay::TOOLBAR_H, s.width, s.height), D2D1_ANTIALIAS_MODE_ALIASED);
+        DrawItems(dc, pal, br);
+        dc->PopAxisAlignedClip();
+
+        ID2D1Factory* f = nullptr; dc->GetFactory(&f);
+        ID2D1PathGeometry* g = nullptr; ID2D1GeometrySink* sk = nullptr;
+        const float R = 10, x0 = Lay::SIDEBAR_W, y0 = Lay::TOOLBAR_H;
+        if (f && SUCCEEDED(f->CreatePathGeometry(&g)) && SUCCEEDED(g->Open(&sk))) {  // re-paint the Mica outside the corner arc
+            sk->BeginFigure({ x0, y0 }, D2D1_FIGURE_BEGIN_FILLED);
+            sk->AddLine({ x0 + R, y0 });
+            sk->AddArc(D2D1::ArcSegment({ x0, y0 + R }, { R, R }, 0, D2D1_SWEEP_DIRECTION_COUNTER_CLOCKWISE, D2D1_ARC_SIZE_SMALL));
+            sk->EndFigure(D2D1_FIGURE_END_CLOSED);
+            sk->Close(); sk->Release();
+            br->SetColor(MicaColor());
+            dc->FillGeometry(g, br);
+            br->SetColor(g_dark ? D2D1::ColorF(1, 1, 1, 0.06f) : D2D1::ColorF(0, 0, 0, 0.06f));  // hairline along the layer edge
+            dc->DrawLine({ x0 + R, y0 + 0.5f }, { s.width, y0 + 0.5f }, br, 1);
+            dc->DrawLine({ x0 + 0.5f, y0 + R }, { x0 + 0.5f, s.height }, br, 1);
+        }
+        if (g) g->Release();
+        if (f) f->Release();
     } else {
     DrawItems(dc, pal, br);
     D2D1_RECT_F top{ Lay::SIDEBAR_W, 0, s.width, Lay::TOOLBAR_H };
@@ -6484,10 +6559,11 @@ static LRESULT CALLBACK WndProc(HWND h, UINT m, WPARAM w, LPARAM l) {
         }
         int hs = HitSideRow(p), ht = HitTool(p);
         bool hl = OverLightsArea(p);
-        { float gx = LightCenter(2).x; ampliacao::Verde(h, hl && p.x >= gx - 11 && p.x < gx + 12); }
+        { float gx = LightCenter(2).x; ampliacao::Verde(h, Wac() ? HitLight(p) == 2 : hl && p.x >= gx - 11 && p.x < gx + 12); }
         if (g_hoverTitle) { g_hoverTitle = false; Invalidate(); }
         if (int ht2 = HitTab(p); ht2 != g_hoverTab) { g_hoverTab = ht2; Invalidate(); }
         if (g_tahoe && (ht >= 0 || g_hoverTool >= 0)) { g_toolMouse = p; Invalidate(); }
+        if (int hc = Wac() ? HitLight(p) : -1; hc != g_hotCap) { g_hotCap = hc; Invalidate(); }
         if (hs != g_hoverSide || ht != g_hoverTool || hl != g_hoverLights) { g_hoverSide = hs; g_hoverTool = ht; g_hoverLights = hl; Invalidate(); }
         if (g_ql && In(QlPanel(), p)) g_qlMouseAt = GetTickCount();  // mostra os controles do vídeo
         {   // dica do botão do Quick Look sob o mouse (issue #8)

@@ -98,6 +98,7 @@ void SetRadius(float dip);  // cantos da janela (0 = retângulo, como no Sequoia
 namespace tahoe {
 float WindowR();               // cantos das janelas: 26 pt no Tahoe, 16 pt no Golden Gate (um raio só para todas)
 int FolderColor();             // Aparência > Cor das pastas (índice de pastacor::colors; -1 = automática)
+bool Wac();                    // WacOS design (wacos_ui, default on): Golden Gate layout + Windows caption buttons and Mica
 bool Golden();                 // tema macOS Golden Gate (liquid_glass=1 e golden_gate=1): o Tahoe com os ajustes do macOS 27
 bool Leopard();                // tema Mac OS X Leopard (leopard=1 sem liquid_glass): o Sequoia com o metal e o Aqua de 2007
 bool On();                     // tema Tahoe (liquid_glass=1)

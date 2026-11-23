@@ -59,7 +59,7 @@ struct Fx : winrt::implements<Fx, IGraphicsEffect, IGraphicsEffectSource, abifx:
     HRESULT __stdcall GetSourceCount(UINT* c) noexcept override { *c = 1; return S_OK; }
 };
 
-bool g_on = false, g_reduce = false, g_tint = true, g_golden = false, g_leopard = false;
+bool g_on = false, g_reduce = false, g_tint = true, g_golden = false, g_leopard = false, g_wac = false;
 int g_folderColor = -1;  // Aparência > Cor das pastas (cor_pastas; -1 = automática)
 std::wstring g_accent = L"azul";  // Ajustes > Aparência > Cor de destaque (destaque=)
 FILETIME g_stamp{};
@@ -85,7 +85,7 @@ std::wstring Path() {
 bool ReadOn() {
     FILE* fp = nullptr;
     if (_wfopen_s(&fp, Path().c_str(), L"r, ccs=UTF-8") || !fp) return false;
-    bool liquid = false, reduce = false, golden = false, leo = false;
+    bool liquid = false, reduce = false, golden = false, leo = false, wac = true;
     int folder = -1;
     wchar_t line[512];
     while (fgetws(line, 512, fp)) {
@@ -95,6 +95,7 @@ bool ReadOn() {
         if (s == L"reduzir_transparencia=1") reduce = true;
         if (s == L"golden_gate=1") golden = true;
         if (s == L"leopard=1") leo = true;
+        if (s == L"wacos_ui=0") wac = false;
         if (s.rfind(L"cor_pastas=", 0) == 0) folder = _wtoi(s.c_str() + 11);
         if (s.rfind(L"destaque=", 0) == 0) g_accent = s.substr(9);
         if (s == L"tingir_janelas=0") g_tint = false;
@@ -102,6 +103,10 @@ bool ReadOn() {
     }
     fclose(fp);
     g_reduce = reduce;
+    // WacOS design (wacos_ui, default on): built on the Golden Gate layout (full-height sidebar, solid content), with
+    // Windows caption buttons and a Mica toolbar; only an explicit Leopard theme turns it off
+    g_wac = wac && !(leo && !liquid);
+    if (g_wac) { liquid = true; golden = true; }
     g_golden = liquid && golden;
     g_leopard = !liquid && leo;  // Mac OS X Leopard: só sem o Liquid Glass
     g_folderColor = folder;
@@ -207,6 +212,7 @@ D2D1_COLOR_F tahoe::Tint(D2D1_COLOR_F base) {
     return D2D1::ColorF(cl(base.r + dr * k), cl(base.g + dg * k), cl(base.b + db * k), base.a);
 }
 
+bool tahoe::Wac() { if (!g_read) Reload(); return g_wac; }
 bool tahoe::On() {
 
     if (!g_read) Reload();
@@ -219,12 +225,12 @@ bool tahoe::Reload() {
     if (g_read && !CompareFileTime(&fa.ftLastWriteTime, &g_stamp)) return false;
     g_stamp = fa.ftLastWriteTime;
     std::wstring accWas = g_accent;
-    bool was = g_on, goldWas = g_golden, leoWas = g_leopard, first = !g_read;
+    bool was = g_on, goldWas = g_golden, leoWas = g_leopard, wacWas = g_wac, first = !g_read;
     int folderWas = g_folderColor;
     g_read = true;
     g_on = ReadOn();
     if (first || was != g_on || goldWas != g_golden || leoWas != g_leopard) Log(L"tema: liquid_glass=%d golden_gate=%d leopard=%d reduzir=%d (%ls)", (int)g_on, (int)g_golden, (int)g_leopard, (int)g_reduce, Path().c_str());
-    return !first && (was != g_on || goldWas != g_golden || leoWas != g_leopard || accWas != g_accent || folderWas != g_folderColor);  // a cor de destaque também redesenha
+    return !first && (was != g_on || goldWas != g_golden || leoWas != g_leopard || wacWas != g_wac || accWas != g_accent || folderWas != g_folderColor);  // a cor de destaque também redesenha
 }
 
 void tahoe::Frame(HWND h, bool on) {
