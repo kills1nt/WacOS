@@ -726,6 +726,8 @@ void PaintBack() {
         // Tahoe: cor do vidro medida na tela (guia macOS26-Theme-Reference, seções 52 e 60): saída ≈ 0,61 × fundo + 0,11
         // no escuro (39 % de um cinza 0,28 por cima do fundo desfocado); no claro a média sobe ~0,11 (cinza 0,56)
         if (TAHOE_DOCK) tint = dark ? D2D1::ColorF(0.28f, 0.28f, 0.29f, 0.39f) : D2D1::ColorF(0.56f, 0.56f, 0.57f, 0.39f);
+        // WacOS design: a deeper smoked glass, like the window Mica (icons read better, less "bubble")
+        if (shell::Setting(L"wacos_ui", L"1") != L"0") tint = dark ? D2D1::ColorF(0.11f, 0.105f, 0.125f, 0.62f) : D2D1::ColorF(0.96f, 0.955f, 0.97f, 0.58f);
         // (16-17/11/2026: a tinta preta do Dock foi desfeita a pedido; o filtro do Transparente é só nos ícones)
         // Personalizar o Dock: cor (clara, escura ou a de destaque) e quanto a tinta cobre o desfoque
         if (g_vidroCor == 1) tint = D2D1::ColorF(0.97f, 0.97f, 0.98f, tint.a);

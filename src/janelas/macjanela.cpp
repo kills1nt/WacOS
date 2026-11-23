@@ -242,7 +242,7 @@ void LightsLayout(Info* in, float& lx0, float& lpitch, float& lr) {
 }
 // Buttons on the right (semaforo::Direita, botoes_direita=1): Windows order, close at the edge. Not in the WacOS apps
 // that use this DLL for their bar (their toolbars are laid out after left buttons)
-bool Right(Info* in) { return semaforo::Direita() && !OwnApp() && !UnifiedBar(in->owner); }
+bool Right(Info* in) { return semaforo::Direita() && (!OwnApp() || semaforo::Wac()) && !UnifiedBar(in->owner); }
 bool TemaWac();  // below: wacos_ui (default on)
 // WacOS design (variant C): Windows caption buttons — 46 pt wide, the full bar height, close turns red. Apps that draw
 // their own bar (Chromium & co.) keep their native Windows buttons untouched.

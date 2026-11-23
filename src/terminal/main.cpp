@@ -404,6 +404,8 @@ IDWriteTextFormat *g_tfMono, *g_tfMonoB, *g_tfTitle;
 std::wstring g_mono = L"Consolas", g_ui = L"Segoe UI";
 float g_cw = 7, g_ch = 15, g_base = 12;  // tamanho da célula (pt)
 bool g_active = true, g_hoverLights, g_shown;
+int g_hotCap = -1;  // WacOS design: caption button under the pointer
+float ClientW();
 int g_view = 0;  // linhas de histórico acima (0 = embaixo, acompanhando)
 // seleção em coordenadas absolutas (linha do histórico + tela, coluna)
 bool g_selecting, g_hasSel;
@@ -587,7 +589,8 @@ void Render() {
     static const D2D1_COLOR_F ring_c[3] = { D2D1::ColorF(0.886f, 0.275f, 0.247f), D2D1::ColorF(0.882f, 0.631f, 0.086f), D2D1::ColorF(0.071f, 0.675f, 0.157f) }; const D2D1_COLOR_F* ring = semaforo::Pick(ring_c, semaforo::RING);
     static const D2D1_COLOR_F glyph_c[3] = { D2D1::ColorF(0.302f, 0, 0), D2D1::ColorF(0.6f, 0.341f, 0), D2D1::ColorF(0, 0.396f, 0) }; const D2D1_COLOR_F* glyph = semaforo::Pick(glyph_c, semaforo::GLYPH);
     bool lit = g_active || g_hoverLights;
-    for (int k = 0; k < 3; k++) {  // padrão do projeto: 14 pt, 23 entre centros; barra fina: o primeiro em 19
+    if (semaforo::Wac()) semaforo::DrawCaps(g_rt, br, s.width, TITLE_H, g_hoverLights ? g_hotCap : -1, true, g_active, IsZoomed(g_hwnd) != 0, IsZoomed(g_hwnd) ? 0.f : 8.f);
+    for (int k = 0; k < 3 && !semaforo::Wac(); k++) {  // padrão do projeto: 14 pt, 23 entre centros; barra fina: o primeiro em 19
         D2D1_POINT_2F c{ 19.f + k * 23, TITLE_H / 2 };
         br->SetColor(lit ? fill[k] : D2D1::ColorF(0.30f, 0.30f, 0.31f));
         g_rt->FillEllipse(D2D1::Ellipse(c, 7, 7), br);
@@ -606,7 +609,7 @@ void Render() {
     if (SUCCEEDED(g_dw->CreateTextLayout(t.c_str(), (UINT32)t.size(), g_tfTitle, 4000, TITLE_H, &tl))) { DWRITE_TEXT_METRICS m{}; tl->GetMetrics(&m); tw = m.widthIncludingTrailingWhitespace; tl->Release(); }
     bool folder = !g_scr.cwd.empty();
     float total = tw + (folder ? 22 : 0);
-    float tx = std::max(84.f, (s.width - total) / 2);
+    float tx = std::max(semaforo::Wac() ? 12.f : 84.f, (s.width - total) / 2);
     if (folder) {  // pasta do Finder em miniatura
         float fx = tx, fy = TITLE_H / 2 - 7;
         br->SetColor(D2D1::ColorF(0.20f, 0.56f, 0.90f));
@@ -618,7 +621,7 @@ void Render() {
         tx += 22;
     }
     br->SetColor(g_active ? D2D1::ColorF(1, 1, 1, 0.72f) : D2D1::ColorF(1, 1, 1, 0.40f));
-    g_rt->DrawTextW(t.c_str(), (UINT32)t.size(), g_tfTitle, D2D1::RectF(tx, 0, s.width - 10, TITLE_H), br, D2D1_DRAW_TEXT_OPTIONS_CLIP);
+    g_rt->DrawTextW(t.c_str(), (UINT32)t.size(), g_tfTitle, D2D1::RectF(tx, 0, s.width - (semaforo::Wac() ? 3 * semaforo::CAP_W + 8 : 10.f), TITLE_H), br, D2D1_DRAW_TEXT_OPTIONS_CLIP);
 
     br->Release();
     if (g_rt->EndDraw() == D2DERR_RECREATE_TARGET) { g_rt->Release(); g_rt = nullptr; }
@@ -771,9 +774,12 @@ LRESULT HitTestNC(HWND h, LPARAM l) {
         if (T && L) return HTTOPLEFT; if (T && R) return HTTOPRIGHT; if (B && L) return HTBOTTOMLEFT; if (B && R) return HTBOTTOMRIGHT;
         if (L) return HTLEFT; if (R) return HTRIGHT; if (T) return HTTOP; if (B) return HTBOTTOM;
     }
+    if (semaforo::Wac()) return pt.y / sc < TITLE_H && pt.x / sc < rc.right / sc - 3 * semaforo::CAP_W ? HTCAPTION : HTCLIENT;
     if (pt.y / sc < TITLE_H && pt.x / sc >= 84) return HTCAPTION;
     return HTCLIENT;
 }
+
+float ClientW() { RECT rc; GetClientRect(g_hwnd, &rc); return rc.right / Scale(); }
 
 LRESULT CALLBACK WndProc(HWND h, UINT m, WPARAM w, LPARAM l) {
     switch (m) {
@@ -840,7 +846,7 @@ LRESULT CALLBACK WndProc(HWND h, UINT m, WPARAM w, LPARAM l) {
     case WM_LBUTTONDOWN: {
         float sc = Scale(); float x = GET_X_LPARAM(l) / sc, y = GET_Y_LPARAM(l) / sc;
         if (y < TITLE_H) {
-            for (int k = 0; k < 3; k++) if (std::fabs(x - (19.f + k * 23)) <= 9 && std::fabs(y - TITLE_H / 2) <= 9) {
+            for (int k = 0; k < 3; k++) if (semaforo::Wac() ? semaforo::HitCap(x, y, ClientW(), TITLE_H) == k : std::fabs(x - (19.f + k * 23)) <= 9 && std::fabs(y - TITLE_H / 2) <= 9) {
                 if (k == 0) PostMessageW(h, WM_CLOSE, 0, 0); else if (k == 1) ShowWindow(h, SW_MINIMIZE); else ampliacao::Alternar(h);
                 return 0;
             }
@@ -868,7 +874,8 @@ LRESULT CALLBACK WndProc(HWND h, UINT m, WPARAM w, LPARAM l) {
     case WM_MOUSEMOVE: {
         float sc = Scale(); float x = GET_X_LPARAM(l) / sc, y = GET_Y_LPARAM(l) / sc;
         bool hl = y < TITLE_H && x < 84;
-        ampliacao::Verde(h, hl && x >= 58 && x < 81);
+        if (semaforo::Wac()) { int hc = semaforo::HitCap(x, y, ClientW(), TITLE_H); hl = hc >= 0; if (hc != g_hotCap) { g_hotCap = hc; Invalidate(); } }
+        ampliacao::Verde(h, semaforo::Wac() ? g_hotCap == 2 : hl && x >= 58 && x < 81);
         if (hl != g_hoverLights) { g_hoverLights = hl; Invalidate(); TRACKMOUSEEVENT t{ sizeof(t), TME_LEAVE, h, 0 }; TrackMouseEvent(&t); }
         if (g_selecting) {
             g_selB = CellAt(GET_X_LPARAM(l), GET_Y_LPARAM(l));

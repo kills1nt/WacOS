@@ -657,8 +657,15 @@ D2D1_RECT_F KeyRect(const KeyDef& k) {
 }
 D2D1_POINT_2F LightCenter(int k) { return semaforo::Leopard() ? D2D1_POINT_2F{ 14.5f + k * 21, 11 } : D2D1_POINT_2F{ 23.f + k * 23, 25 }; }  // Leopard: na barra de 22
 // Leopard: os dois botões redondos ficam pequenos (metade) na ponta direita da barra de título de 22
-D2D1_POINT_2F SideBtnCenter() { return semaforo::Leopard() ? D2D1_POINT_2F{ Client().width - 34, 11 } : D2D1_POINT_2F{ Side() + (g_mode == M_BASIC ? 123.5f : 105.5f), 26 }; }
-D2D1_POINT_2F ModeBtnCenter() { return semaforo::Leopard() ? D2D1_POINT_2F{ Client().width - 13, 11 } : D2D1_POINT_2F{ Client().width - 26.5f, 26 }; }
+D2D1_POINT_2F SideBtnCenter() {
+    if (semaforo::Wac() && !semaforo::Leopard()) return { Side() + 28.f, 26 };  // WacOS design: the caption buttons took the right
+    return semaforo::Leopard() ? D2D1_POINT_2F{ Client().width - 34, 11 } : D2D1_POINT_2F{ Side() + (g_mode == M_BASIC ? 123.5f : 105.5f), 26 };
+}
+D2D1_POINT_2F ModeBtnCenter() {
+    if (semaforo::Wac() && !semaforo::Leopard()) return { Side() + 72.f, 26 };
+    return semaforo::Leopard() ? D2D1_POINT_2F{ Client().width - 13, 11 } : D2D1_POINT_2F{ Client().width - 26.5f, 26 };
+}
+int g_hotCap = -1;
 const float ROUND_R = 18;
 D2D1_RECT_F HistRect(int i) { float y = TB + 4 + i * HIST_H - g_histScroll; return { 8, y, SBW - 8, y + HIST_H - 4 }; }
 bool In(D2D1_RECT_F r, D2D1_POINT_2F p) { return p.x >= r.left && p.x < r.right && p.y >= r.top && p.y < r.bottom; }
@@ -1216,6 +1223,7 @@ Pal Colors() {
 void Line(ID2D1RenderTarget* rt, ID2D1Brush* b, float x1, float y1, float x2, float y2, float w) { rt->DrawLine({ x1, y1 }, { x2, y2 }, b, w, g_round); }
 
 void DrawLights(ID2D1RenderTarget* rt, ID2D1SolidColorBrush* br) {
+    if (semaforo::Wac() && !semaforo::Leopard()) { semaforo::DrawCaps(rt, br, Client().width, 40, g_hoverLights ? g_hotCap : -1, g_dark, g_active, false, 8, 2); return; }
     static const D2D1_COLOR_F fill_c[3] = { D2D1::ColorF(1.0f, 0.373f, 0.345f), D2D1::ColorF(0.996f, 0.737f, 0.180f), D2D1::ColorF(0.157f, 0.784f, 0.251f) }; const D2D1_COLOR_F* fill = semaforo::Pick(fill_c, semaforo::FILL);
     static const D2D1_COLOR_F ring_c[3] = { D2D1::ColorF(0.886f, 0.275f, 0.247f), D2D1::ColorF(0.882f, 0.631f, 0.086f), D2D1::ColorF(0.071f, 0.675f, 0.157f) }; const D2D1_COLOR_F* ring = semaforo::Pick(ring_c, semaforo::RING);
     static const D2D1_COLOR_F glyph_c[3] = { D2D1::ColorF(0.302f, 0, 0), D2D1::ColorF(0.6f, 0.341f, 0), D2D1::ColorF(0, 0.396f, 0) }; const D2D1_COLOR_F* glyph = semaforo::Pick(glyph_c, semaforo::GLYPH);
@@ -1625,7 +1633,8 @@ void Invalidate() { InvalidateRect(g_hwnd, nullptr, FALSE); }
 // interação
 Target HitTarget(D2D1_POINT_2F p) {
     Target t;
-    for (int k = 0; k < 3; k++) if (InCircle(LightCenter(k), 8, p)) return { TG_LIGHT, k };
+    if (semaforo::Wac() && !semaforo::Leopard()) { int k = semaforo::HitCap(p.x, p.y, Client().width, 40, 2); if (k >= 0) return { TG_LIGHT, k }; }
+    else for (int k = 0; k < 3; k++) if (InCircle(LightCenter(k), 8, p)) return { TG_LIGHT, k };
     if (InCircle(SideBtnCenter(), semaforo::Leopard() ? ROUND_R / 2 : ROUND_R, p)) return { TG_SIDEBTN, 0 };
     if (InCircle(ModeBtnCenter(), semaforo::Leopard() ? ROUND_R / 2 : ROUND_R, p)) return { TG_MODEBTN, 0 };
     if (g_sidebar && p.x < SBW && p.y >= TB)
@@ -1910,6 +1919,7 @@ LRESULT CALLBACK WndProc(HWND h, UINT m, WPARAM w, LPARAM l) {
         TRACKMOUSEEVENT t{ sizeof(t), (DWORD)(m == WM_NCMOUSEMOVE ? TME_LEAVE | TME_NONCLIENT : TME_LEAVE), h, 0 }; TrackMouseEvent(&t);
         Target tg = HitTarget(p);
         bool hl = p.x < 82 && p.y < TB;
+        if (semaforo::Wac() && !semaforo::Leopard()) { int hc = semaforo::HitCap(p.x, p.y, Client().width, 40, 2); hl = hc >= 0; if (hc != g_hotCap) { g_hotCap = hc; Invalidate(); } }
         if (!(tg == g_hover) || hl != g_hoverLights) { g_hover = tg; g_hoverLights = hl; Invalidate(); }
         if (m == WM_NCMOUSEMOVE) break;
         return 0;

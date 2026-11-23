@@ -410,7 +410,7 @@ void LayoutButtons() {
         e0 = ListR();
         if (gg) { g_btn[B_TRASH].shown = false; put(B_MORE, ListR() - 28, L"", 36, 16, 4); g_btn[B_MORE].r.top = TOOL_CY - 18; g_btn[B_MORE].r.bottom = TOOL_CY + 18; }
     }
-    float e1 = c.width;
+    float e1 = c.width - (semaforo::Wac() ? 3 * semaforo::CAP_W : 0.f);  // WacOS design: room for the caption buttons
     if (gg) {
         // macOS 26 (foto de referência, medida em pt): escrever num círculo de 36 a 27 pt da coluna; um grupo em cápsula
         // com Aa, lista de verificação, tabela, anexo, marcação e Ferramentas de Escrita (a cada 37,5 pt, o 1º a
@@ -483,8 +483,15 @@ int HitBtn(D2D1_POINT_2F p) {
     return -1;
 }
 
-D2D1_POINT_2F LightCenter(int k) { return { 23.f + k * 23.f, TOOL_CY }; }
-bool OverLights(D2D1_POINT_2F p) { return p.x >= 10 && p.x < 82 && std::fabs(p.y - TOOL_CY) <= 10; }
+int g_hotCap = -1;  // WacOS design: caption button under the pointer
+D2D1_POINT_2F LightCenter(int k) {
+    if (semaforo::Wac()) { auto r = semaforo::CapRect(k, ClientDip().width, TOOLBAR_H); return { (r.left + r.right) / 2, (r.top + r.bottom) / 2 }; }
+    return { 23.f + k * 23.f, TOOL_CY };
+}
+bool OverLights(D2D1_POINT_2F p) {
+    if (semaforo::Wac()) return semaforo::HitCap(p.x, p.y, ClientDip().width, TOOLBAR_H) >= 0;
+    return p.x >= 10 && p.x < 82 && std::fabs(p.y - TOOL_CY) <= 10;
+}
 
 // ---------------------------------------------------------------------------
 // painel Aa (formatação)
@@ -515,6 +522,10 @@ void Chevron(ID2D1DeviceContext* dc, ID2D1SolidColorBrush* br, float cx, float c
 }
 
 void DrawLights(ID2D1DeviceContext* dc, ID2D1SolidColorBrush* br) {
+    if (semaforo::Wac()) {
+        semaforo::DrawCaps(dc, br, ClientDip().width, TOOLBAR_H, g_hoverLights ? g_hotCap : -1, g_dark, g_active, IsZoomed(g_hwnd) != 0, IsZoomed(g_hwnd) ? 0.f : 8.f);
+        return;
+    }
     static const D2D1_COLOR_F fill_c[3] = { D2D1::ColorF(1.0f, 0.373f, 0.345f), D2D1::ColorF(0.996f, 0.737f, 0.180f), D2D1::ColorF(0.157f, 0.784f, 0.251f) }; const D2D1_COLOR_F* fill = semaforo::Pick(fill_c, semaforo::FILL);
     static const D2D1_COLOR_F ring_c[3] = { D2D1::ColorF(0.886f, 0.275f, 0.247f), D2D1::ColorF(0.882f, 0.631f, 0.086f), D2D1::ColorF(0.071f, 0.675f, 0.157f) }; const D2D1_COLOR_F* ring = semaforo::Pick(ring_c, semaforo::RING);
     static const D2D1_COLOR_F glyph_c[3] = { D2D1::ColorF(0.302f, 0, 0), D2D1::ColorF(0.6f, 0.341f, 0), D2D1::ColorF(0, 0.396f, 0) }; const D2D1_COLOR_F* glyph = semaforo::Pick(glyph_c, semaforo::GLYPH);
@@ -1738,7 +1749,8 @@ LRESULT CALLBACK WndProc(HWND h, UINT m, WPARAM w, LPARAM l) {
         if (GetCapture() == h && editor::Focused() && (w & MK_LBUTTON)) { editor::OnMouseMove(p, true); return 0; }
         int hb = p.y < TOOLBAR_H ? HitBtn(p) : -1;
         bool hl = OverLights(p);
-        ampliacao::Verde(h, hl && p.x >= 58 && p.x < 81);
+        if (int hc = semaforo::Wac() ? semaforo::HitCap(p.x, p.y, ClientDip().width, TOOLBAR_H) : -1; hc != g_hotCap) { g_hotCap = hc; Invalidate(); }
+        ampliacao::Verde(h, semaforo::Wac() ? g_hotCap == 2 : hl && p.x >= 58 && p.x < 81);
         if (hb != g_hoverBtn || hl != g_hoverLights) { g_hoverBtn = hb; g_hoverLights = hl; Invalidate(); }
         if (EditorShown() && p.x >= EdL()) editor::OnMouseMove(p, false);
         // cursor: texto no editor, setas nas divisórias
@@ -1773,7 +1785,7 @@ LRESULT CALLBACK WndProc(HWND h, UINT m, WPARAM w, LPARAM l) {
         if (g_focus == F_RENAME && !(p.x < SideW() && HitSide(p) >= 0 && g_side[HitSide(p)].id == g_renameId)) CommitRename();
         for (int k = 0; k < 3; k++) {
             auto c = LightCenter(k);
-            if (std::fabs(p.x - c.x) <= 8 && std::fabs(p.y - c.y) <= 8) {
+            if (semaforo::Wac() ? semaforo::HitCap(p.x, p.y, ClientDip().width, TOOLBAR_H) == k : std::fabs(p.x - c.x) <= 8 && std::fabs(p.y - c.y) <= 8) {
                 if (k == 0) PostMessageW(h, WM_CLOSE, 0, 0);
                 else if (k == 1) ShowWindow(h, SW_MINIMIZE);
                 else ampliacao::Alternar(h);

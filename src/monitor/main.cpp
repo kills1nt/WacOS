@@ -760,14 +760,17 @@ D2D1_RECT_F SegRect(int i) {
 D2D1_RECT_F SearchRect() {
     auto s = Client();
     if (LEO) return { s.width - 12 - 130, 27, s.width - 12, 47 };
-    float r = s.width - 8; return { std::max(SEG_X + SEG_W * T_COUNT + 10, r - SEARCH_W), PILL_TOP, r, PILL_TOP + PILL_H };
+    float r = s.width - 8 - (semaforo::Wac() ? 3 * semaforo::CAP_W : 0.f);  // WacOS design: the caption buttons sit at the right
+    return { std::max(SEG_X + SEG_W * T_COUNT + 10, r - (semaforo::Wac() ? 240.f : SEARCH_W)), PILL_TOP, r, PILL_TOP + PILL_H };
 }
 D2D1_POINT_2F LightCenter(int k) { return LEO ? D2D1_POINT_2F{ 14.5f + k * 21, 11 } : D2D1_POINT_2F{ 26.f + k * 23, 25 }; }  // como na referência
 
 // ---- desenho
 void Line(ID2D1RenderTarget* rt, ID2D1Brush* b, float x1, float y1, float x2, float y2, float w = 1.4f) { rt->DrawLine({ x1, y1 }, { x2, y2 }, b, w); }
 
+int g_hotCap = -1;
 void DrawLights(ID2D1RenderTarget* rt, ID2D1SolidColorBrush* br) {
+    if (semaforo::Wac() && !LEO) { semaforo::DrawCaps(rt, br, Client().width, 50, g_hoverLights ? g_hotCap : -1, g_dark, g_active, IsZoomed(g_hwnd) != 0, IsZoomed(g_hwnd) ? 0.f : 8.f); return; }
     static const D2D1_COLOR_F fill_c[3] = { D2D1::ColorF(1.0f, 0.373f, 0.345f), D2D1::ColorF(0.996f, 0.737f, 0.180f), D2D1::ColorF(0.157f, 0.784f, 0.251f) }; const D2D1_COLOR_F* fill = semaforo::Pick(fill_c, semaforo::FILL);
     static const D2D1_COLOR_F ring_c[3] = { D2D1::ColorF(0.886f, 0.275f, 0.247f), D2D1::ColorF(0.882f, 0.631f, 0.086f), D2D1::ColorF(0.071f, 0.675f, 0.157f) }; const D2D1_COLOR_F* ring = semaforo::Pick(ring_c, semaforo::RING);
     static const D2D1_COLOR_F glyph_c[3] = { D2D1::ColorF(0.302f, 0, 0), D2D1::ColorF(0.6f, 0.341f, 0), D2D1::ColorF(0, 0.396f, 0) }; const D2D1_COLOR_F* glyph = semaforo::Pick(glyph_c, semaforo::GLYPH);
@@ -1410,7 +1413,7 @@ LRESULT HitTestNC(HWND h, LPARAM l) {
     }
     D2D1_POINT_2F p{ pt.x / sc, pt.y / sc };
     if (p.y < TOOLBAR_H && g_sheet == SH_NONE) {
-        bool control = (p.x < 82 && (!LEO || p.y < 22)) || In(SearchRect(), p) || In(BtnRect(0), p) || In(BtnRect(1), p) || In(BtnRect(2), p) ||
+        bool control = (semaforo::Wac() && !LEO ? semaforo::HitCap(p.x, p.y, Client().width, 50) >= 0 : p.x < 82 && (!LEO || p.y < 22)) || In(SearchRect(), p) || In(BtnRect(0), p) || In(BtnRect(1), p) || In(BtnRect(2), p) ||
                        (LEO ? (p.x >= SegRect(0).left && p.x < SegRect(T_COUNT - 1).right && p.y >= 22) : (p.x >= SEG_X && p.x < SEG_X + T_COUNT * SEG_W));
         for (int k = 0; k < 3; k++) if (In(BtnRect(k), p)) control = true;
         if (!control) return HTCAPTION;
@@ -1476,7 +1479,8 @@ LRESULT CALLBACK WndProc(HWND h, UINT m, WPARAM w, LPARAM l) {
         TRACKMOUSEEVENT t{ sizeof(t), TME_LEAVE, h, 0 }; TrackMouseEvent(&t);
         int hb = -1; for (int k = 0; k < 3; k++) if (In(BtnRect(k), p)) hb = k;
         bool hl = p.x < 82 && p.y < TOOLBAR_H;
-        ampliacao::Verde(h, hl && p.x >= 58 && p.x < 81);
+        if (semaforo::Wac() && !LEO) { int hc = semaforo::HitCap(p.x, p.y, Client().width, 50); hl = hc >= 0; if (hc != g_hotCap) { g_hotCap = hc; Invalidate(); } }
+        ampliacao::Verde(h, semaforo::Wac() && !LEO ? g_hotCap == 2 : hl && p.x >= 58 && p.x < 81);
         if (hb != g_hoverBtn || hl != g_hoverLights) { g_hoverBtn = hb; g_hoverLights = hl; Invalidate(); }
         return 0;
     }
@@ -1490,7 +1494,7 @@ LRESULT CALLBACK WndProc(HWND h, UINT m, WPARAM w, LPARAM l) {
         }
         for (int k = 0; k < 3; k++) {
             auto c = LightCenter(k);
-            if (std::fabs(p.x - c.x) <= 8 && std::fabs(p.y - c.y) <= 8) {
+            if (semaforo::Wac() && !LEO ? semaforo::HitCap(p.x, p.y, Client().width, 50) == k : std::fabs(p.x - c.x) <= 8 && std::fabs(p.y - c.y) <= 8) {
                 if (k == 0) PostMessageW(h, WM_CLOSE, 0, 0);
                 else if (k == 1) ShowWindow(h, SW_MINIMIZE);
                 else ampliacao::Alternar(h);

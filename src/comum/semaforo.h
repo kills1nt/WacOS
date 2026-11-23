@@ -16,7 +16,7 @@ namespace semaforo {
 enum Kind { FILL, RING, GLYPH };
 
 // lê destaque= e o tema (golden_gate=1 junto com liquid_glass=1 = macOS Golden Gate) do ajustes.txt
-struct Estado { bool grafite = false, aqua = false, liquid = false, leopard = false, direita = true; };
+struct Estado { bool grafite = false, aqua = false, liquid = false, leopard = false, direita = true, wac = true; };
 inline const Estado& Ler(bool force = false) {  // force: relê já (o Shell avisou que os ajustes mudaram)
     static Estado st;
     static DWORD lastCheck = 0;
@@ -34,7 +34,7 @@ inline const Estado& Ler(bool force = false) {  // force: relê já (o Shell avi
     lastWrite = fa.ftLastWriteTime;
     FILE* f = nullptr;
     if (_wfopen_s(&f, path.c_str(), L"r, ccs=UTF-8") || !f) return st;
-    bool g = false, liquid = false, golden = false, leo = false, dir = true;
+    bool g = false, liquid = false, golden = false, leo = false, dir = true, wac = true;
     wchar_t line[512];
     while (fgetws(line, 512, f)) {
         if (wcsncmp(line, L"destaque=", 9) == 0) g = wcsncmp(line + 9, L"grafite", 7) == 0;
@@ -42,10 +42,14 @@ inline const Estado& Ler(bool force = false) {  // force: relê já (o Shell avi
         if (wcsncmp(line, L"golden_gate=", 12) == 0) golden = line[12] == L'1';
         if (wcsncmp(line, L"leopard=", 8) == 0) leo = line[8] == L'1';
         if (wcsncmp(line, L"botoes_direita=", 15) == 0) dir = line[15] != L'0';
+        if (wcsncmp(line, L"wacos_ui=", 9) == 0) wac = line[9] != L'0';
     }
     fclose(f);
     st.grafite = g;
-    st.aqua = liquid && golden;
+    // WacOS design (wacos_ui, default on): the apps take the plain Tahoe structure (Windows title row + toolbar under
+    // it) instead of the Golden Gate unified bar, so the Windows caption buttons fit on the right of the title row
+    st.wac = wac && !(leo && !liquid);
+    st.aqua = liquid && golden && !st.wac;
     st.liquid = liquid;
     st.leopard = leo && !liquid;
     st.direita = dir;  // Mac OS X Leopard: só sem o Liquid Glass (o Sequoia por baixo)
@@ -55,7 +59,8 @@ inline const Estado& Ler(bool force = false) {  // force: relê já (o Shell avi
 inline bool Grafite() { return Ler().grafite; }
 // The window buttons on the right, in the Windows order (minimise, zoom, close; close at the edge): this is Windows,
 // and the other apps' own buttons are there too. botoes_direita=0 puts them back on the left, like on the Mac.
-inline bool Direita() { return Ler().direita; }
+inline bool Direita() { return Ler().direita || Ler().wac; }
+inline bool Wac() { return Ler().wac; }
 
 // Tema macOS Golden Gate (macOS 27, beta 6 em diante): os botões ganharam volume de novo. Medido nas capturas do
 // 512 Pixels (Finder, 2x, botão de 28 px): o círculo é um degradê de cima para baixo — mais saturado no alto, mais
@@ -260,5 +265,45 @@ inline const D2D1_COLOR_F* Pick(const D2D1_COLOR_F* normal, Kind k) {
 }
 
 inline D2D1_COLOR_F Close() { static const D2D1_COLOR_F c[3] = { { 1.0f, 0.373f, 0.341f, 1 } }; return Pick(c, FILL)[0]; }
+
+// ---- WacOS design: Windows caption buttons for the apps that draw their own title bar (Notas, Calculadora...).
+// k: 0 close, 1 minimise, 2 zoom (the same numbering as the traffic lights); close sits at the right edge.
+const float CAP_W = 46;
+// count 2 = no zoom button (minimise sits next to close)
+inline D2D1_RECT_F CapRect(int k, float W, float H, int count = 3) { int pos = k == 0 ? 0 : k == 2 ? 1 : count == 2 ? 1 : 2; float r = W - pos * CAP_W; return { r - CAP_W, 0, r, H }; }
+inline int HitCap(float x, float y, float W, float H, int count = 3) {
+    if (y < 0 || y >= H) return -1;
+    for (int k = 0; k < count; k++) { auto r = CapRect(k, W, H, count); if (x >= r.left && x < r.right) return k; }
+    return -1;
+}
+// hot: button under the pointer (-1 none); R: window corner radius (close follows it; 0 when maximised)
+inline void DrawCaps(ID2D1RenderTarget* rt, ID2D1SolidColorBrush* br, float W, float H, int hot, bool dark, bool active,
+                     bool zoomed, float R, int count = 3) {
+    ID2D1Factory* f = nullptr; rt->GetFactory(&f);
+    for (int k = 0; k < count; k++) {
+        D2D1_RECT_F r = CapRect(k, W, H, count);
+        if (hot == k) {
+            br->SetColor(k == 0 ? D2D1::ColorF(0.769f, 0.169f, 0.110f, 1) : dark ? D2D1::ColorF(1, 1, 1, 0.09f) : D2D1::ColorF(0, 0, 0, 0.07f));
+            if (k == 0 && R > 0) {
+                rt->PushAxisAlignedClip(r, D2D1_ANTIALIAS_MODE_PER_PRIMITIVE);
+                rt->FillRoundedRectangle(D2D1::RoundedRect(D2D1::RectF(r.left - R, r.top, r.right, r.bottom + R), R, R), br);
+                rt->PopAxisAlignedClip();
+            } else rt->FillRectangle(r, br);
+        }
+        float a = active || hot >= 0 ? 0.9f : 0.45f;
+        br->SetColor(hot == k && k == 0 ? D2D1::ColorF(1, 1, 1, 1) : dark ? D2D1::ColorF(1, 1, 1, a) : D2D1::ColorF(0, 0, 0, a));
+        float cx = std::floor((r.left + r.right) / 2) + 0.5f, cy = std::floor((r.top + r.bottom) / 2) + 0.5f, s = 5;
+        if (k == 0) {
+            rt->DrawLine({ cx - s, cy - s }, { cx + s, cy + s }, br, 1);
+            rt->DrawLine({ cx - s, cy + s }, { cx + s, cy - s }, br, 1);
+        } else if (k == 1) rt->DrawLine({ cx - s, cy }, { cx + s, cy }, br, 1);
+        else if (zoomed) {  // restore: two overlapping squares
+            rt->DrawRoundedRectangle(D2D1::RoundedRect(D2D1::RectF(cx - s, cy - s + 2, cx + s - 2, cy + s), 1.5f, 1.5f), br, 1);
+            rt->DrawLine({ cx - s + 2, cy - s }, { cx + s - 1, cy - s }, br, 1);
+            rt->DrawLine({ cx + s, cy - s + 1 }, { cx + s, cy + s - 2 }, br, 1);
+        } else rt->DrawRoundedRectangle(D2D1::RoundedRect(D2D1::RectF(cx - s, cy - s, cx + s, cy + s), 1.5f, 1.5f), br, 1);
+    }
+    if (f) f->Release();
+}
 
 }  // namespace semaforo
