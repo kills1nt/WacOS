@@ -569,6 +569,7 @@ bool Attach(HWND h);  // janela criada com WS_EX_NOREDIRECTIONBITMAP
 void Detach(HWND h);  // a janela vai ser destruída: solta o vidro dela
 void Restart();       // refaz o vidro real do zero (Ajustes: "Reiniciar o Liquid Glass")
 void Set(HWND h, float w, float hgt, float radius, D2D1_COLOR_F tint);  // px
+void SetPlain(HWND h, bool plain);  // plain frosted glass for this window (no Liquid Glass lens, rim or refraction)
 void Fade(HWND h, float opacity, float scale, float cx, float cy);     // animação: opacidade e escala em volta de (cx, cy) px
 // Conteúdo desenhado DENTRO do vidro (mesma árvore da Composição): vidro e desenho chegam à tela no mesmo
 // quadro. Numa janela à parte (swap chain), a borda do vidro ficava um quadro atrás do desenho quando o

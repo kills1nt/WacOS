@@ -1936,8 +1936,8 @@ void ApplyWindowTheme() {
     if (Leo()) SIDE_W = 0;  // Leopard: as Preferências do Sistema não têm barra lateral (Mostrar Todos)  // Tahoe: 8 de recuo + 239 do painel; Golden Gate: 231 até a borda
     SIDE_ROW = g_tahoe ? 32.f : 28.f;
     ROW_H = g_tahoe ? (Golden() ? 37.5f : 42.f) : 38.f;  // macOS 27: linhas de 37,5 (as com ícone, 49)
-    SEARCH_Y = Golden() ? 62.f : 52.f;
-    ACCOUNT_Y = Golden() ? 96.f : 90.f;
+    SEARCH_Y = Wac() ? 12.f : Golden() ? 62.f : 52.f;   // WacOS design: no traffic lights there, the search goes to the top
+    ACCOUNT_Y = Wac() ? 50.f : Golden() ? 96.f : 90.f;
     BOOL dark = g_dark;
     DwmSetWindowAttribute(g_hwnd, 20 /*DWMWA_USE_IMMERSIVE_DARK_MODE*/, &dark, sizeof(dark));
     if (g_tahoe) {  // Tahoe: cantos de 26 pt com o vidro da Composição (finder/tahoe.cpp)

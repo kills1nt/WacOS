@@ -66,7 +66,7 @@ const DWORD ACR_DARK = 0x401E1C1C, ACR_LIGHT = 0x40F6F6F6;  // AABBGGRR
 #define SEP_W (g_tile * (TAHOE_DOCK ? 0.484f : LEO_DOCK ? 0.80f : 0.40f))  // Leopard: o vão largo da faixa zebrada (~0,85 ícone na captura)
 // Leopard (comparado com as fotos de referência): passo de ~1,17 ícone entre os desenhos
 #define SLOT (g_tile * (TAHOE_DOCK ? 1.0625f : LEO_DOCK ? 1.17f : 1.076f) + g_espaco)  // Leopard: passo de ~1,17 ícone (medido nas fotos de referência do usuário)
-#define DOCK_RADIUS (g_raioPct >= 0 ? (g_tile + PAD_TOP + PAD_BOTTOM) * 0.5f * g_raioPct : g_tile * (TAHOE_DOCK ? 0.40f : 0.28f))  // Tahoe: 0,5 A (medido); Sequoia: 0,3 A
+#define DOCK_RADIUS (g_raioPct >= 0 ? (g_tile + PAD_TOP + PAD_BOTTOM) * 0.5f * g_raioPct : g_tile * (shell::Setting(L"wacos_ui", L"1") != L"0" ? 0.36f : TAHOE_DOCK ? 0.40f : 0.28f))  // WacOS: 18 at 48  // Tahoe: 0,5 A (medido); Sequoia: 0,3 A
 const float ART_PACK_0 = 1.0f;   // PNGs do pacote: já têm a margem do Mac (desenho = 80%)
 const float ART_WIN_0 = 0.80f;   // ícones do Windows (recortados): mesmo corpo visual
 // Leopard: o desenho do ícone ocupa o espaço inteiro (no 10.5 os ícones quase se encostam, sem a margem de hoje)
@@ -734,6 +734,7 @@ void PaintBack() {
         else if (g_vidroCor == 2) tint = D2D1::ColorF(0.10f, 0.10f, 0.11f, tint.a);
         else if (g_vidroCor == 3) { D2D1_COLOR_F ac = ui::Accent(); tint = D2D1::ColorF(ac.r, ac.g, ac.b, tint.a); }
         if (g_vidroOpac >= 0) tint.a = g_vidroOpac;
+        backdrop::SetPlain(g_back, shell::Setting(L"wacos_ui", L"1") != L"0");
         backdrop::Set(g_back, (float)w, (float)h, rad * sc, tint);
         return;
     }
@@ -972,6 +973,12 @@ void Paint() {
     // quase transparente: só para o fundo do Dock receber o clique
     rt->FillRoundedRectangle(D2D1::RoundedRect(g_bg, rad, rad), br);
     float px = 1 / sc;
+    if (shell::Setting(L"wacos_ui", L"1") != L"0") {  // WacOS design: a hairline edge and a faint top light, like the mockup
+        br->SetColor(dark ? D2D1::ColorF(1, 1, 1, 0.10f) : D2D1::ColorF(0, 0, 0, 0.08f));
+        rt->DrawRoundedRectangle(D2D1::RoundedRect(D2D1::RectF(g_bg.left + px / 2, g_bg.top + px / 2, g_bg.right - px / 2, g_bg.bottom - px / 2), rad - px / 2, rad - px / 2), br, px);
+        br->SetColor(D2D1::ColorF(1, 1, 1, dark ? 0.06f : 0.35f));
+        rt->DrawLine({ g_bg.left + rad, g_bg.top + 1.5f * px }, { g_bg.right - rad, g_bg.top + 1.5f * px }, br, px);
+    }
     // bordas do vidro (como no Sequoia): 1 px escuro por fora, 1 px claro logo por dentro
     // (com o Liquid Glass quem desenha o contorno especular é o próprio vidro, em backdrop.cpp)
     // Leopard: a prateleira de vidro em perspectiva. O tampo vai do fundo (mais estreito, acima do pé dos ícones) até a

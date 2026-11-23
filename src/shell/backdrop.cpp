@@ -166,6 +166,7 @@ const int LENS = 3;  // anéis da lente (mais = degrau menor, mais trabalho para
 
 struct Entry {
     HWND hwnd = nullptr;
+    bool plain = false;  // WacOS design: plain frosted glass (blur + tint), no Liquid Glass lens/rim/refraction
     wuc::Desktop::DesktopWindowTarget target{ nullptr };
     wuc::ContainerVisual root{ nullptr };
     wuc::SpriteVisual blur{ nullptr };
@@ -302,7 +303,7 @@ void Apply(Entry& e) {
     D2D1_COLOR_F t = backdrop::AdjustTint(e.tintIn);
     e.tintBrush.Color(Col(t.r, t.g, t.b, t.a));
 
-    bool liquid = st.liquid && !st.reduce;
+    bool liquid = st.liquid && !st.reduce && !e.plain;
     if (!liquid) { SetLiquidVisible(e, false); rg::Use(e, false); return; }
     BuildLiquid(e);
     SetLiquidVisible(e, true);
@@ -1555,6 +1556,13 @@ void backdrop::Fade(HWND h, float opacity, float scale, float cx, float cy) {
     e.root.Scale({ scale, scale, 1 });
 }
 
+void backdrop::SetPlain(HWND h, bool plain) {
+    auto it = g_entries.find(h);
+    if (it == g_entries.end() || it->second.plain == plain) return;
+    it->second.plain = plain;
+    try { Apply(it->second); } catch (...) {}
+}
+
 void backdrop::Set(HWND h, float w, float hgt, float radius, D2D1_COLOR_F tint) {
     auto it = g_entries.find(h);
     if (it == g_entries.end()) return;
@@ -1571,7 +1579,7 @@ void backdrop::Set(HWND h, float w, float hgt, float radius, D2D1_COLOR_F tint) 
     bool sizeOnly = e.hasSet && !memcmp(&e.tintIn, &tint, sizeof(tint)) && e.radius == radius;
     e.w = w; e.h = hgt; e.radius = radius; e.tintIn = tint; e.hasSet = true;
     try {
-        if (sizeOnly && !(g_style.liquid && !g_style.reduce)) {  // caminho rápido (Dock ampliando, Spotlight animando)
+        if (sizeOnly && !(g_style.liquid && !g_style.reduce && !e.plain)) {  // caminho rápido (Dock ampliando, Spotlight animando)
             e.geo.Size({ w, hgt });
             return;
         }
