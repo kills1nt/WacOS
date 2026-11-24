@@ -1825,7 +1825,9 @@ Page Spotlight() {
     Page p;
     p.groups.push_back(G({ Toggle(L"Abrir com Win+Espaço", [] { return Setting(L"spotlight_atalho", L"1") != L"0"; },
                                   [](bool v) { SetSetting(L"spotlight_atalho", v ? L"1" : L"0"); },
-                                  L"Desligado, o atalho fica livre para outro lançador (Raycast, PowerToys Run).") }));
+                                  L"Desligado, o atalho fica livre para outro lançador (Raycast, PowerToys Run)."),
+                           Toggle(L"Abrir o Launchpad com a tecla Windows", [] { return Setting(L"launchpad_win", L"1") != L"0"; },
+                                  [](bool v) { SetSetting(L"launchpad_win", v ? L"1" : L"0"); }) }));
     p.groups.push_back(G({ Uri(L"Permissões de Pesquisa", L"ms-settings:search-permissions", 0xE721, C_GRAY),
                            Uri(L"Pesquisa no Windows (Indexação)", L"ms-settings:cortana-windowssearch", 0xE8B7, C_BLUE) },
                          L"Resultados da Pesquisa", L"O Spotlight usa o índice de pesquisa do Windows para achar arquivos."));

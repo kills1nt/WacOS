@@ -1660,3 +1660,4 @@
 { L"Arquivo em Lotes", L"Batch File" },
 { L"Abrir com Win+Espaço", L"Open with Win+Space" },
 { L"Desligado, o atalho fica livre para outro lançador (Raycast, PowerToys Run).", L"When off, the shortcut is free for another launcher (Raycast, PowerToys Run)." },
+{ L"Abrir o Launchpad com a tecla Windows", L"Open Launchpad with the Windows key" },

@@ -982,8 +982,31 @@ static bool Heal(App& a) {
     return true;
 }
 
+// A browser helper that only draws another app's window (Steam's ...\steam\bin\cef\cef.win64\steamwebhelper.exe):
+// the app to start is the "<folder>.exe" in a folder above it (steam\steam.exe). Empty when it isn't one.
+static std::wstring HelperOwner(const std::wstring& exe) {
+    std::wstring low = exe; for (auto& ch : low) ch = towlower(ch);
+    if (low.find(L"\\cef\\") == std::wstring::npos && low.find(L"helper") == std::wstring::npos) return L"";
+    std::wstring dir = exe.substr(0, exe.find_last_of(L'\\'));
+    for (int up = 0; up < 5 && dir.size() > 3; up++) {
+        size_t s = dir.find_last_of(L'\\');
+        if (s == std::wstring::npos) break;
+        std::wstring name = dir.substr(s + 1), cand = dir + L"\\" + name + L".exe";
+        if (GetFileAttributesW(cand.c_str()) != INVALID_FILE_ATTRIBUTES) return cand;
+        dir.resize(s);
+    }
+    return L"";
+}
+
 void apps::Launch(App& a, const std::wstring& args) {
     a.launchedAt = GetTickCount();
+    if (std::wstring owner = HelperOwner(a.exe); !owner.empty()) {  // Steam: start steam.exe (it shows its window)
+        std::wstring lo = owner; for (auto& ch : lo) ch = towlower(ch);
+        const wchar_t* extra = lo.size() >= 9 && lo.compare(lo.size() - 9, 9, L"steam.exe") == 0 ? L"steam://open/main" : nullptr;
+        ShellExecuteW(nullptr, L"open", owner.c_str(), args.empty() ? extra : args.c_str(), nullptr, SW_SHOWNORMAL);
+        Log(L"dock: abrindo %ls pelo programa dono (%ls)", a.name.c_str(), owner.c_str());
+        return;
+    }
     if (a.pinned && Heal(a)) Save();
     for (const std::wstring* c : { &a.launch, &a.exe }) {
         std::wstring aumid = PackagedAumid(*c);

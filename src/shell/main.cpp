@@ -70,6 +70,7 @@ static DWORD g_macKeyVk;    // a tecla do atalho: soltar também é nosso (o app
 static DWORD g_capKey;      // tecla do atalho da Captura de Tela ainda segurada
 static bool g_fullHook = true;  // false: o gancho só existe para a tela de bloqueio (tecla Windows do Launchpad desligada)
 const UINT WM_APP_VOLUME = WM_APP + 42;
+static bool g_winAlone = true;      // launchpad_win: the Windows key alone opens the Launchpad (0 = nothing)
 static bool g_spotlightKey = true;  // spotlight_atalho: Win+Space opens our Spotlight (0 = free for Raycast & co.)
 static bool g_volumeKeys = true;  // ajuste volume_mac: teclas de volume com o aviso do Mac (0 = o Windows trata)
 
@@ -112,7 +113,7 @@ static LRESULT CALLBACK KeyHook(int code, WPARAM w, LPARAM l) {
                         if (!g_winDown) { g_winDown = true; g_winCombo = mods(); g_winEaten = false; g_spaceHeld = false; g_tabHeld = false; g_winVk = k->vkCode; g_winAt = k->time; }
                     } else if (g_winDown) {
                         g_winDown = false;
-                        if (!g_winCombo && k->time - g_winAt <= 1000) PostMessageW(g_msg, WM_APP_LAUNCHPAD, 0, 0);
+                        if (!g_winCombo && g_winAlone && k->time - g_winAt <= 1000) PostMessageW(g_msg, WM_APP_LAUNCHPAD, 0, 0);
                     }
                     return CallNextHookEx(g_kbHook, code, w, l);
                 }
@@ -138,7 +139,7 @@ static LRESULT CALLBACK KeyHook(int code, WPARAM w, LPARAM l) {
                         if (!g_winEaten) Inject(g_winVk, true);
                     } else if (k->time - g_winAt > 1000) {
                         // segurada muito tempo (ex.: Win + clique/arraste do mouse): não abre nada
-                    } else PostMessageW(g_msg, WM_APP_LAUNCHPAD, 0, 0);  // sozinha: Launchpad (e o Iniciar não abre)
+                    } else if (g_winAlone) PostMessageW(g_msg, WM_APP_LAUNCHPAD, 0, 0);  // sozinha: Launchpad (e o Iniciar não abre)
                     return 1;
                 }
             } else if (k->vkCode == VK_TAB && down && !g_winDown && GetAsyncKeyState(VK_MENU) < 0 && GetAsyncKeyState(VK_CONTROL) >= 0) {
@@ -907,6 +908,8 @@ static LRESULT CALLBACK MsgProc(HWND h, UINT m, WPARAM w, LPARAM l) {
     }
     if (m == reload && reload) {  // o Ajustes do Sistema gravou ajustes.txt
         g_macKeys = !shell::SoDock() && shell::Setting(L"atalhos_mac", L"1") == L"1";
+        g_spotlightKey = shell::Setting(L"spotlight_atalho", L"1") != L"0";  // the Win / Win+Space toggles apply at once
+        g_winAlone = shell::Setting(L"launchpad_win", L"1") != L"0";
         static int lastLiquid = -1;
         if (lastLiquid < 0) lastLiquid = liquid::Leopard() ? 3 : liquid::Golden() ? 2 : liquid::On();
         static int lastTheme = -1;  // 0 Sequoia, 1 Tahoe, 2 Golden Gate, 3 Leopard
@@ -1218,6 +1221,7 @@ int WINAPI wWinMain(HINSTANCE hi, HINSTANCE, PWSTR, int) {
     if (!soDock) EnsureScreenshot();
     g_volumeKeys = shell::Setting(L"volume_mac", L"1") == L"1";
     g_spotlightKey = shell::Setting(L"spotlight_atalho", L"1") != L"0";
+    g_winAlone = shell::Setting(L"launchpad_win", L"1") != L"0";
     if (g_fullHook || g_volumeKeys || (!soDock && shell::Setting(L"bloqueio", L"1") != L"0")) std::thread(KeyThread).detach();  // sem o Launchpad: só barra teclas com a tela travada
     SetWinEventHook(EVENT_SYSTEM_FOREGROUND, EVENT_SYSTEM_FOREGROUND, nullptr, OnWinEvent, 0, 0, WINEVENT_OUTOFCONTEXT);
     jogo::GanchoPosicao(OnWinEvent, WINEVENT_OUTOFCONTEXT | WINEVENT_SKIPOWNPROCESS);  // sai no modo jogo (jogo.cpp)
@@ -1312,6 +1316,7 @@ int shell::RodarNativo(HINSTANCE hi, const std::wstring& dirBin, const std::wstr
     EnsureScreenshot();
     g_volumeKeys = shell::Setting(L"volume_mac", L"1") == L"1";
     g_spotlightKey = shell::Setting(L"spotlight_atalho", L"1") != L"0";
+    g_winAlone = shell::Setting(L"launchpad_win", L"1") != L"0";
     if (g_fullHook || g_volumeKeys) std::thread(KeyThread).detach();
     SetWinEventHook(EVENT_SYSTEM_FOREGROUND, EVENT_SYSTEM_FOREGROUND, nullptr, OnWinEvent, 0, 0, WINEVENT_OUTOFCONTEXT);
     jogo::GanchoPosicao(OnWinEvent, WINEVENT_OUTOFCONTEXT);  // sai no modo jogo (jogo.cpp)

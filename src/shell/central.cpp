@@ -1210,6 +1210,11 @@ void PaintTahoe() {
     dc->PushLayer(D2D1::LayerParameters(D2D1::InfiniteRect(), nullptr, D2D1_ANTIALIAS_MODE_PER_PRIMITIVE, D2D1::IdentityMatrix(), t), layer);
     g_hits.clear();
     tglass::Begin();
+    if (shell::Setting(L"wacos_ui", L"1") != L"0") {  // WacOS design: one dark matte sheet (frost + smoke) with a thin edge
+        tglass::Rect(D2D1::RectF(0, 0, W * sc, H * sc), 14 * sc, D2D1::ColorF(0.105f, 0.10f, 0.12f, 0.82f));
+        br->SetColor(D2D1::ColorF(1, 1, 1, 0.10f));
+        dc->DrawRoundedRectangle(D2D1::RoundedRect(D2D1::RectF(0.5f, 0.5f, W - 0.5f, H - 0.5f), 13.5f, 13.5f), br, 1);
+    }
     // texto e símbolos brancos sobre o vidro (como nas capturas); a tinta escurece um pouco o fundo
     const D2D1_COLOR_F white = D2D1::ColorF(1, 1, 1, 0.96f), white2 = D2D1::ColorF(1, 1, 1, 0.72f);
     // vidro "claro" dos módulos (capturas do macOS 26): no claro, branco leitoso leve sobre o fundo saturado;
@@ -1234,13 +1239,15 @@ void PaintTahoe() {
             float gx = (r.right - r.left) * 0.03f * grow, gy = (r.bottom - r.top) * 0.03f * grow;  // escala 1,06
             r.left -= gx; r.right += gx; r.top -= gy; r.bottom += gy; rad += std::min(gx, gy);
         }
-        if (wac) rad = std::min(rad, 12.f);  // WacOS design: Windows-like rounded tiles, not capsules
         D2D1_RECT_F pr = D2D1::RectF(r.left * sc, r.top * sc, r.right * sc, r.bottom * sc);
-        if (wac) { tglass::Rect(pr, rad * sc, dark ? D2D1::ColorF(0.10f, 0.10f, 0.12f, 0.62f) : D2D1::ColorF(0.96f, 0.955f, 0.97f, 0.62f));
-                   br->SetColor(D2D1::ColorF(1, 1, 1, dark ? 0.09f : 0.35f));
-                   dc->DrawRoundedRectangle(D2D1::RoundedRect(D2D1::RectF(r.left + 0.5f, r.top + 0.5f, r.right - 0.5f, r.bottom - 0.5f), rad - 0.5f, rad - 0.5f), br, 1);
-                   if (hov) { br->SetColor(D2D1::ColorF(1, 1, 1, 0.05f)); dc->FillRoundedRectangle(D2D1::RoundedRect(r, rad, rad), br); }
-                   return; }
+        if (wac) {  // WacOS design: a flat layer tile on the one matte panel (no glass per tile)
+            rad = std::min(rad, 8.f);
+            br->SetColor(D2D1::ColorF(1, 1, 1, hov ? 0.10f : 0.06f));
+            dc->FillRoundedRectangle(D2D1::RoundedRect(r, rad, rad), br);
+            br->SetColor(D2D1::ColorF(1, 1, 1, 0.05f));
+            dc->DrawRoundedRectangle(D2D1::RoundedRect(D2D1::RectF(r.left + 0.5f, r.top + 0.5f, r.right - 0.5f, r.bottom - 0.5f), rad - 0.5f, rad - 0.5f), br, 1);
+            return;
+        }
         if (real) pieces.push_back({ pr, rad * sc });
         else tglass::Rect(pr, rad * sc, tint);
         // brilho suave no alto e o contorno especular do Liquid Glass
@@ -1577,12 +1584,14 @@ void PaintTahoe() {
     layer->Release();
     br->Release();
     ui::GpuEnd(g_s);
-    tglass::End(t, !real);
+    tglass::End(t, !real || wac);
     veil::Opacity(t);
     float cx, cy; Pivot(wpx, cx, cy);
     ui::GpuScale(g_s, mo.scale, cx, cy);
     if (g_glass) {
-        if (real) backdrop::SetPieces(g_back, (float)wpx, (float)hpx, pieces, tint, 4.5f);  // vidro "clear": o fundo quase nítido (a lente fica na borda)
+        backdrop::SetPlain(g_back, wac);
+        if (wac) backdrop::Set(g_back, 0, 0, 0, Colors().tint);  // the matte sheet is a tglass piece (always dark: the text is white)
+        else if (real) backdrop::SetPieces(g_back, (float)wpx, (float)hpx, pieces, tint, 4.5f);  // vidro "clear": o fundo quase nítido (a lente fica na borda)
         else backdrop::Set(g_back, 0, 0, 0, Colors().tint);
         backdrop::Fade(g_back, t, mo.scale, cx, cy);
     }
